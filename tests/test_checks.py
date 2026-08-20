@@ -66,7 +66,7 @@ def test_registering_second_check_makes_run_all_return_both_in_stable_order(
         names = [c.name for c in checks]
         # foundation and protocol are registered at import time, so they
         # come first; the dynamically registered "second" comes last.
-        assert names == ["foundation", "protocol", "prompt", "second"]
+        assert names == ["foundation", "protocol", "prompt", "bash", "second"]
         # stable across repeated calls
         assert [c.name for c in run_all(tmp_path)] == names
     finally:
@@ -108,7 +108,7 @@ def test_run_all_returns_foundation_then_protocol_in_stable_order(
 ) -> None:
     _make_ai_dir(tmp_path / "ai")
     names = [c.name for c in run_all(tmp_path)]
-    assert names == ["foundation", "protocol", "prompt"]
+    assert names == ["foundation", "protocol", "prompt", "bash"]
     # stable across repeated calls
     assert [c.name for c in run_all(tmp_path)] == names
 
@@ -165,4 +165,41 @@ def test_composed_report_nogo_when_prompt_fails(tmp_path: Path) -> None:
     report = Report(checks=run_all(tmp_path))
     prompt = next(c for c in report.checks if c.name == "prompt")
     assert prompt.status is Status.FAIL
+    assert report.verdict is False
+
+
+def test_composed_report_nogo_when_bash_fails(tmp_path: Path) -> None:
+    # A .sh driver with a syntax error makes the bash check FAIL -> NO-GO.
+    ai_dir = tmp_path / "ai"
+    ai_dir.mkdir(parents=True, exist_ok=True)
+    (ai_dir / "cycle-001-loop-doctor-gate.md").write_text(
+        chr(10).join([
+            "# cycle-001 gate",
+            "",
+            "## THE SEED",
+            "",
+            chr(96) * 3,
+            "/home/sasha/Research/four",
+            chr(96) * 3,
+            "",
+        ]),
+        encoding="utf-8",
+    )
+    (ai_dir / "loop-doctor-cycle-runner-prompt.md").write_text(
+        "prompt", encoding="utf-8"
+    )
+    proj = tmp_path / "proj"
+    proj.mkdir(parents=True, exist_ok=True)
+    (proj / "run.sh").write_text(
+        chr(10).join([
+            "#!/usr/bin/env bash",
+            "if [ -z $x; then",
+            "  echo hi",
+            "",
+        ]),
+        encoding="utf-8",
+    )
+    report = Report(checks=run_all(tmp_path))
+    bash = next(c for c in report.checks if c.name == "bash")
+    assert bash.status is Status.FAIL
     assert report.verdict is False

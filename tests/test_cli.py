@@ -121,7 +121,7 @@ def test_check_full_run_composes_both_checks(tmp_path: Path, capsys) -> None:
     code = main(["check", str(tmp_path), "--json"])
     assert code == 0
     data = json.loads(capsys.readouterr().out)
-    assert [c["name"] for c in data["checks"]] == ["foundation", "protocol", "prompt"]
+    assert [c["name"] for c in data["checks"]] == ["foundation", "protocol", "prompt", "bash"]
     assert data["verdict"] is True
 
 
@@ -181,6 +181,36 @@ def test_check_nogo_when_prompt_fails(tmp_path: Path, capsys) -> None:
     )
     (ai_dir / "loop-doctor-cycle-runner-prompt.md").write_text(
         f"python {spokes_dir}/foo.py --goal x --bogus y",
+        encoding="utf-8",
+    )
+    code = main(["check", str(tmp_path)])
+    assert code == 1
+    out = capsys.readouterr().out
+    assert "verdict: NO-GO" in out
+
+
+def test_check_bash_runs_only_that_check(tmp_path: Path, capsys) -> None:
+    _make_ai_dir(tmp_path / "ai")
+    (tmp_path / "proj").mkdir()
+    code = main(["check", str(tmp_path), "--check", "bash", "--json"])
+    assert code == 0
+    data = json.loads(capsys.readouterr().out)
+    assert [c["name"] for c in data["checks"]] == ["bash"]
+    assert data["checks"][0]["status"] == "pass"
+
+
+def test_check_nogo_when_bash_fails(tmp_path: Path, capsys) -> None:
+    # A .sh driver with a syntax error makes the bash check FAIL -> NO-GO.
+    _make_ai_dir(tmp_path / "ai")
+    proj = tmp_path / "proj"
+    proj.mkdir()
+    (proj / "run.sh").write_text(
+        chr(10).join([
+            "#!/usr/bin/env bash",
+            "if [ -z $x; then",
+            "  echo hi",
+            "",
+        ]),
         encoding="utf-8",
     )
     code = main(["check", str(tmp_path)])
