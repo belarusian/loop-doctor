@@ -1,8 +1,9 @@
 """Command-line entrypoint for loop-doctor.
 
-Provides the ``check`` subcommand: resolve the project, run the
-foundation check, and render the report (text by default, JSON with
-``--json``). Exit codes: 0 = go, 1 = no-go, 2 = usage error.
+Provides the ``check`` subcommand: resolve the project, run the registered
+checks (or a single named check with ``--check``), and render the report
+(text by default, JSON with ``--json``). Exit codes: 0 = go, 1 = no-go,
+2 = usage error.
 """
 
 from __future__ import annotations
@@ -11,8 +12,8 @@ import argparse
 import sys
 from pathlib import Path
 
-from loop_doctor.project import resolve_project
-from loop_doctor.report import Check, Report, Status, exit_code, render_json, render_text
+from loop_doctor import checks as checks_mod
+from loop_doctor.report import Report, exit_code, render_json, render_text
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -22,33 +23,35 @@ def build_parser() -> argparse.ArgumentParser:
     check = sub.add_parser("check", help="run the pre-flight readiness check")
     check.add_argument("project_dir", help="the proj dir or its parent")
     check.add_argument("--json", action="store_true", help="emit JSON instead of text")
+    check.add_argument(
+        "--check",
+        dest="check",
+        metavar="NAME",
+        help="run only the named check (e.g. foundation)",
+    )
     return parser
 
 
-def run_check(project_dir: Path) -> Report:
-    """Build a Report with a single ``foundation`` check.
+def run_check(project_dir: Path, check: str | None = None) -> Report:
+    """Build a Report from the check registry.
 
-    The check passes when the ``ai`` dir resolves and both the gate log
-    and the runner prompt are located; otherwise it fails with a detail.
+    When ``check`` is ``None``, every registered check is run (in stable
+    registration order). When ``check`` names a registered check, only that
+    check is run. The returned ``Report`` carries a single aggregate verdict.
     """
-    ai_dir, three = resolve_project(Path(project_dir))
-    if three.gate_log is not None and three.runner_prompt is not None:
-        check = Check("foundation", Status.PASS, f"ai dir {ai_dir}")
+    project_dir = Path(project_dir)
+    if check is None:
+        result = checks_mod.run_all(project_dir)
     else:
-        missing = []
-        if three.gate_log is None:
-            missing.append("gate log")
-        if three.runner_prompt is None:
-            missing.append("runner prompt")
-        check = Check("foundation", Status.FAIL, "missing: " + ", ".join(missing))
-    return Report(checks=[check])
+        result = [checks_mod.run_one(check, project_dir)]
+    return Report(checks=result)
 
 
 def main(argv: list[str] | None = None) -> int:
     """Parse args, run the check, print the report, and return the exit code.
 
-    A usage error (argparse) yields 2; a go report yields 0; a no-go
-    report yields 1.
+    A usage error (argparse, a non-existent project dir, or an unknown
+    ``--check`` name) yields 2; a go report yields 0; a no-go report yields 1.
     """
     parser = build_parser()
     try:
@@ -56,7 +59,17 @@ def main(argv: list[str] | None = None) -> int:
     except SystemExit as exc:
         code = exc.code
         return 0 if code is None else int(code)
-    report = run_check(Path(args.project_dir))
+
+    project_dir = Path(args.project_dir)
+    if not project_dir.is_dir():
+        sys.stderr.write(f"usage error: project dir does not exist: {project_dir}\n")
+        return 2
+
+    if args.check is not None and args.check not in checks_mod.registered_names():
+        sys.stderr.write(f"usage error: unknown check: {args.check}\n")
+        return 2
+
+    report = run_check(project_dir, args.check)
     if args.json:
         sys.stdout.write(render_json(report))
     else:

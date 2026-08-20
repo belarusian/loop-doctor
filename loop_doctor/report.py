@@ -57,6 +57,28 @@ class Report:
         """Alias of :attr:`verdict`."""
         return self.verdict
 
+    def add(self, check: Check) -> None:
+        """Append a check to this report.
+
+        The report grows incrementally; the verdict is re-derived from the
+        full ``checks`` list, so it tracks the newly added check.
+        """
+        self.checks.append(check)
+
+    def summary(self) -> str:
+        """Return a single stable line with counts by status.
+
+        Counts are reported in a fixed order (pass, fail, warn, skip) and are
+        independent of the order the checks were inserted. Example:
+        ``"pass=1 fail=0 warn=1 skip=1"``.
+        """
+        counts = {status: 0 for status in (Status.PASS, Status.FAIL, Status.WARN, Status.SKIP)}
+        for check in self.checks:
+            counts[check.status] += 1
+        return " ".join(f"{status.value}={counts[status]}" for status in (
+            Status.PASS, Status.FAIL, Status.WARN, Status.SKIP
+        ))
+
 
 def render_text(report: Report) -> str:
     """Render a stable, human-readable text report.
