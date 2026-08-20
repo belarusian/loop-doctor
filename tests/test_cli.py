@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import loop_doctor.endpoint as endpoint_mod
 from loop_doctor.cli import main
 
 
@@ -122,7 +123,7 @@ def test_check_full_run_composes_both_checks(tmp_path: Path, capsys) -> None:
     assert code == 0
     data = json.loads(capsys.readouterr().out)
     names = [c["name"] for c in data["checks"]]
-    assert names == ["foundation", "protocol", "prompt", "bash", "run_health"]
+    assert names == ["foundation", "protocol", "prompt", "bash", "run_health", "endpoint"]
     assert data["verdict"] is True
 
 
@@ -250,6 +251,26 @@ def test_check_nogo_when_run_health_fails(tmp_path: Path, capsys) -> None:
         lines.append(f"OUTER trajectory saved to: {traj_dir / f'trajectory_{n:04d}.json'}")
         lines.append("OUTER outcome: exit:task_complete")
     (ai_dir / "cycles.out").write_text(nl.join(lines) + nl, encoding="utf-8")
+    code = main(["check", str(tmp_path)])
+    assert code == 1
+    out = capsys.readouterr().out
+    assert "verdict: NO-GO" in out
+
+
+def test_check_endpoint_runs_only_that_check(tmp_path: Path, capsys) -> None:
+    _make_ai_dir(tmp_path / "ai")
+    code = main(["check", str(tmp_path), "--check", "endpoint", "--json"])
+    assert code == 0
+    data = json.loads(capsys.readouterr().out)
+    assert [c["name"] for c in data["checks"]] == ["endpoint"]
+    # Default autouse fixture: _probe -> True -> PASS.
+    assert data["checks"][0]["status"] == "pass"
+
+
+def test_check_nogo_when_endpoint_fails(tmp_path: Path, capsys, monkeypatch) -> None:
+    # An unreachable endpoint makes the endpoint check FAIL -> NO-GO.
+    _make_ai_dir(tmp_path / "ai")
+    monkeypatch.setattr(endpoint_mod, "_probe", lambda *a, **k: False)
     code = main(["check", str(tmp_path)])
     assert code == 1
     out = capsys.readouterr().out

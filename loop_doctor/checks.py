@@ -7,7 +7,8 @@ registration order and returns the list of ``Check`` results.
 
 This module is dependency-free: it imports only from ``loop_doctor.project``,
 ``loop_doctor.protocol``, ``loop_doctor.prompt``, ``loop_doctor.bash_check``,
-``loop_doctor.run_health``, and ``loop_doctor.report`` (no spoke-lint / fourseer).
+``loop_doctor.run_health``, ``loop_doctor.endpoint``, and ``loop_doctor.report``
+(no spoke-lint / fourseer).
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from loop_doctor.bash_check import bash_check
+from loop_doctor.endpoint import endpoint_check
 from loop_doctor.project import resolve_project
 from loop_doctor.prompt import prompt_check
 from loop_doctor.protocol import protocol_check
@@ -102,3 +104,7 @@ register("bash", bash_check)
 # Register the run health check after bash so run_all returns
 # [foundation, protocol, prompt, bash, run_health] in stable order.
 register("run_health", run_health_check)
+
+# Register the endpoint check after run health so run_all returns
+# [foundation, protocol, prompt, bash, run_health, endpoint] in stable order.
+register("endpoint", endpoint_check)
