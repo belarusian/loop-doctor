@@ -6,7 +6,8 @@ registered by name in a module-level registry and composed into a single
 registration order and returns the list of ``Check`` results.
 
 This module is dependency-free: it imports only from ``loop_doctor.project``,
-``loop_doctor.protocol``, and ``loop_doctor.report`` (no spoke-lint / fourseer).
+``loop_doctor.protocol``, ``loop_doctor.prompt``, ``loop_doctor.bash_check``,
+and ``loop_doctor.report`` (no spoke-lint / fourseer).
 """
 
 from __future__ import annotations
@@ -14,6 +15,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 
+from loop_doctor.bash_check import bash_check
 from loop_doctor.project import resolve_project
 from loop_doctor.prompt import prompt_check
 from loop_doctor.protocol import protocol_check
@@ -91,3 +93,7 @@ register("protocol", protocol_check)
 # Register the prompt check after protocol so run_all returns
 # [foundation, protocol, prompt] in stable order.
 register("prompt", prompt_check)
+
+# Register the bash check after prompt so run_all returns
+# [foundation, protocol, prompt, bash] in stable order.
+register("bash", bash_check)

@@ -45,6 +45,20 @@ def resolve_ai_dir(project_dir: Path) -> Path:
     return project_dir / "ai"
 
 
+def resolve_proj_dir(project_dir: Path) -> Path:
+    """Return the ``proj`` dir for a project.
+
+    Accepts either the ``proj`` dir itself or its parent. If ``project_dir``
+    is named ``proj``, it is the ``proj`` dir and is returned as-is; otherwise
+    ``project_dir`` is treated as the parent and the ``proj`` dir is
+    ``project_dir / "proj"``. The returned path need not exist.
+    """
+    project_dir = Path(project_dir)
+    if project_dir.name == "proj":
+        return project_dir
+    return project_dir / "proj"
+
+
 def _first_match(ai_dir: Path, pattern: str) -> Path | None:
     """Return the first file in ``ai_dir`` matching ``pattern`` (sorted)."""
     if not ai_dir.is_dir():
