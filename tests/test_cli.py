@@ -148,6 +148,7 @@ def test_check_nogo_when_protocol_fails(tmp_path: Path, capsys) -> None:
 
 
 def test_check_prompt_runs_only_that_check(tmp_path: Path, capsys) -> None:
+    pytest.importorskip("spoke_lint")
     _make_ai_dir(tmp_path / "ai")
     code = main(["check", str(tmp_path), "--check", "prompt", "--json"])
     assert code == 0
@@ -157,6 +158,7 @@ def test_check_prompt_runs_only_that_check(tmp_path: Path, capsys) -> None:
 
 
 def test_check_nogo_when_prompt_fails(tmp_path: Path, capsys) -> None:
+    pytest.importorskip("spoke_lint")
     # A runner prompt that passes an unknown flag makes the prompt check FAIL.
     ai_dir = tmp_path / "ai"
     ai_dir.mkdir(parents=True, exist_ok=True)
@@ -235,6 +237,7 @@ def test_check_run_health_runs_only_that_check(tmp_path: Path, capsys) -> None:
 
 
 def test_check_nogo_when_run_health_fails(tmp_path: Path, capsys) -> None:
+    pytest.importorskip("fourseer")
     # A cycles.out with a missing cycle number makes run_health FAIL -> NO-GO.
     _make_ai_dir(tmp_path / "ai")
     ai_dir = tmp_path / "ai"
