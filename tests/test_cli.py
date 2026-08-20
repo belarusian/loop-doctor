@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 import loop_doctor.endpoint as endpoint_mod
+from loop_doctor import __version__
 from loop_doctor.cli import main
 
 
@@ -479,3 +480,41 @@ def test_file_as_project_dir_returns_exit_2(tmp_path: Path, capsys) -> None:
     err = capsys.readouterr().err
     assert "usage error" in err
     assert "does not exist" in err
+
+# ---------------------------------------------------------------------------
+# Cycle 11: --version top-level flag.
+# ---------------------------------------------------------------------------
+
+
+def test_version_returns_zero(capsys) -> None:
+    # --version is a top-level flag: it prints the version and exits 0.
+    code = main(["--version"])
+    assert code == 0
+    out = capsys.readouterr().out
+    assert f"loop-doctor {__version__}" in out
+    assert "loop-doctor 0.0.1" in out
+
+
+def test_version_prints_to_stdout_not_stderr(capsys) -> None:
+    # The version line goes to stdout; nothing is written to stderr.
+    code = main(["--version"])
+    assert code == 0
+    err = capsys.readouterr().err
+    assert err == ""
+
+
+def test_version_requires_no_project_dir(tmp_path: Path, capsys) -> None:
+    # --version must work with no project dir and no subcommand.
+    code = main(["--version"])
+    assert code == 0
+    out = capsys.readouterr().out
+    assert "loop-doctor 0.0.1" in out
+    # No report is rendered.
+    assert "verdict" not in out
+
+
+def test_version_does_not_break_required_subcommand(capsys) -> None:
+    # Adding --version must not break the required-subcommand usage error:
+    # main([]) still returns 2.
+    code = main([])
+    assert code == 2
