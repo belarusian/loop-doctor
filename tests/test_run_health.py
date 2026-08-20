@@ -12,6 +12,8 @@ import sys
 from pathlib import Path
 from unittest import mock
 
+import pytest
+
 from loop_doctor.report import Status
 from loop_doctor.run_health import run_health_check
 
@@ -64,6 +66,7 @@ def test_run_health_skips_when_fourseer_not_importable(tmp_path: Path) -> None:
 
 
 def test_run_health_skips_when_no_ai_dir(tmp_path: Path) -> None:
+    pytest.importorskip("fourseer")
     # No ai dir at all -> no cycles.out -> SKIP.
     check = run_health_check(tmp_path)
     assert check.status is Status.SKIP
@@ -71,6 +74,7 @@ def test_run_health_skips_when_no_ai_dir(tmp_path: Path) -> None:
 
 
 def test_run_health_skips_when_no_cycles_out(tmp_path: Path) -> None:
+    pytest.importorskip("fourseer")
     # An ai dir with trajectories but no cycles.out -> SKIP.
     ai_dir = tmp_path / "ai"
     ai_dir.mkdir(parents=True, exist_ok=True)
@@ -81,6 +85,7 @@ def test_run_health_skips_when_no_cycles_out(tmp_path: Path) -> None:
 
 
 def test_run_health_passes_on_consistent_run(tmp_path: Path) -> None:
+    pytest.importorskip("fourseer")
     # Contiguous cycle numbers and every referenced trajectory exists on disk.
     _make_ai_dir(tmp_path / "ai", [1, 2, 3], [f"trajectory_{n:04d}.json" for n in (1, 2, 3)])
     check = run_health_check(tmp_path)
@@ -90,6 +95,7 @@ def test_run_health_passes_on_consistent_run(tmp_path: Path) -> None:
 
 
 def test_run_health_fails_on_missing_cycle_number(tmp_path: Path) -> None:
+    pytest.importorskip("fourseer")
     # Cycles 1 and 3 exist but 2 is missing -> contiguity gap -> FAIL.
     _make_ai_dir(tmp_path / "ai", [1, 3], [f"trajectory_{n:04d}.json" for n in (1, 3)])
     check = run_health_check(tmp_path)
@@ -99,6 +105,7 @@ def test_run_health_fails_on_missing_cycle_number(tmp_path: Path) -> None:
 
 
 def test_run_health_fails_on_missing_trajectory_path(tmp_path: Path) -> None:
+    pytest.importorskip("fourseer")
     # Cycles 1, 2, 3 are contiguous but trajectory_0002.json is absent on disk.
     _make_ai_dir(tmp_path / "ai", [1, 2, 3], [f"trajectory_{n:04d}.json" for n in (1, 3)])
     check = run_health_check(tmp_path)

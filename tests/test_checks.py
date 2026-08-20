@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 import loop_doctor.endpoint as endpoint_mod
 from loop_doctor.checks import register, run_all
 from loop_doctor.report import Check, Report, Status
@@ -134,6 +136,7 @@ def test_composed_report_nogo_when_protocol_fails(tmp_path: Path) -> None:
 
 
 def test_composed_report_nogo_when_prompt_fails(tmp_path: Path) -> None:
+    pytest.importorskip("spoke_lint")
     # A runner prompt that passes an unknown flag makes the prompt check FAIL.
     ai_dir = tmp_path / "ai"
     ai_dir.mkdir(parents=True, exist_ok=True)
@@ -209,6 +212,7 @@ def test_composed_report_nogo_when_bash_fails(tmp_path: Path) -> None:
 
 
 def test_composed_report_nogo_when_run_health_fails(tmp_path: Path) -> None:
+    pytest.importorskip("fourseer")
     # A cycles.out with a missing cycle number makes run_health FAIL -> NO-GO.
     ai_dir = tmp_path / "ai"
     ai_dir.mkdir(parents=True, exist_ok=True)
