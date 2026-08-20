@@ -53,3 +53,35 @@ def test_check_from_proj_dir(tmp_path: Path, capsys) -> None:
     _make_ai_dir(tmp_path / "ai")
     code = main(["check", str(tmp_path / "proj")])
     assert code == 0
+
+
+def test_nonexistent_project_dir_returns_exit_2(tmp_path: Path, capsys) -> None:
+    code = main(["check", str(tmp_path / "does-not-exist-xyz-123")])
+    assert code == 2
+    err = capsys.readouterr().err
+    assert "usage error" in err
+
+
+def test_check_flag_runs_only_that_check(tmp_path: Path, capsys) -> None:
+    _make_ai_dir(tmp_path / "ai")
+    code = main(["check", str(tmp_path), "--check", "foundation", "--json"])
+    assert code == 0
+    data = json.loads(capsys.readouterr().out)
+    assert [c["name"] for c in data["checks"]] == ["foundation"]
+
+
+def test_unknown_check_returns_exit_2(tmp_path: Path, capsys) -> None:
+    _make_ai_dir(tmp_path / "ai")
+    code = main(["check", str(tmp_path), "--check", "nope"])
+    assert code == 2
+    err = capsys.readouterr().err
+    assert "unknown check" in err
+
+
+def test_go_report_returns_zero(tmp_path: Path, capsys) -> None:
+    _make_ai_dir(tmp_path / "ai")
+    assert main(["check", str(tmp_path)]) == 0
+
+
+def test_nogo_report_returns_one(tmp_path: Path, capsys) -> None:
+    assert main(["check", str(tmp_path)]) == 1

@@ -72,3 +72,79 @@ def test_exit_code_maps_go_to_zero_and_nogo_to_one() -> None:
     assert exit_code(Report(checks=[Check("a", Status.FAIL)])) == 1
     # WARN/SKIP do not block
     assert exit_code(Report(checks=[Check("a", Status.WARN), Check("b", Status.SKIP)])) == 0
+
+
+def test_add_grows_report_and_verdict_tracks_it() -> None:
+    report = Report()
+    assert report.checks == []
+    assert report.verdict is True
+    report.add(Check("a", Status.PASS))
+    assert len(report.checks) == 1
+    assert report.verdict is True
+    report.add(Check("b", Status.FAIL))
+    assert len(report.checks) == 2
+    assert report.verdict is False
+
+
+def test_summary_counts_are_correct_and_stable() -> None:
+    report = Report(
+        checks=[
+            Check("a", Status.PASS),
+            Check("b", Status.FAIL),
+            Check("c", Status.WARN),
+            Check("d", Status.SKIP),
+            Check("e", Status.PASS),
+        ]
+    )
+    assert report.summary() == "pass=2 fail=1 warn=1 skip=1"
+    # stable across repeated calls
+    assert report.summary() == report.summary()
+
+
+def test_summary_is_independent_of_insertion_order() -> None:
+    r1 = Report(checks=[Check("a", Status.PASS), Check("b", Status.FAIL)])
+    r2 = Report(checks=[Check("b", Status.FAIL), Check("a", Status.PASS)])
+    assert r1.summary() == r2.summary()
+    assert r1.summary() == "pass=1 fail=1 warn=0 skip=0"
+
+
+def test_summary_empty_report() -> None:
+    assert Report().summary() == "pass=0 fail=0 warn=0 skip=0"
+
+
+def test_render_text_byte_stable_for_sample_report() -> None:
+    report = _sample_report()
+    expected = (
+        "verdict: GO\n"
+        "PASS  foundation — ai dir resolved\n"
+        "WARN  protocol — seed ref missing\n"
+        "SKIP  prompt-lint — optional dep absent\n"
+    )
+    assert render_text(report) == expected
+
+
+def test_render_json_byte_stable_for_sample_report() -> None:
+    report = _sample_report()
+    expected = (
+        "{\n"
+        '  "checks": [\n'
+        "    {\n"
+        '      "detail": "ai dir resolved",\n'
+        '      "name": "foundation",\n'
+        '      "status": "pass"\n'
+        "    },\n"
+        "    {\n"
+        '      "detail": "seed ref missing",\n'
+        '      "name": "protocol",\n'
+        '      "status": "warn"\n'
+        "    },\n"
+        "    {\n"
+        '      "detail": "optional dep absent",\n'
+        '      "name": "prompt-lint",\n'
+        '      "status": "skip"\n'
+        "    }\n"
+        "  ],\n"
+        '  "verdict": true\n'
+        "}\n"
+    )
+    assert render_json(report) == expected
