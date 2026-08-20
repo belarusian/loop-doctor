@@ -99,11 +99,14 @@ def render_text(report: Report) -> str:
 def render_json(report: Report) -> str:
     """Render a stable JSON report.
 
-    Uses ``sort_keys=True`` and ``indent=2``. No timestamps or hostnames are
-    included, so the output is fully deterministic for a given report.
+    Emits a top-level ``verdict`` (bool), a ``summary`` string (identical to
+    :meth:`Report.summary`), and a ``checks`` list. Uses ``sort_keys=True`` and
+    ``indent=2``. No timestamps or hostnames are included, so the output is
+    fully deterministic for a given report.
     """
     payload: dict[str, Any] = {
         "verdict": report.verdict,
+        "summary": report.summary(),
         "checks": [
             {"name": c.name, "status": c.status.value, "detail": c.detail}
             for c in report.checks

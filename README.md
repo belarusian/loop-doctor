@@ -18,9 +18,38 @@ launching build cycles.
 
 ## Usage
 
-    loop-doctor check <project-dir> [--json]
+    loop-doctor check <project-dir> [--json] [--check NAME]
+    loop-doctor check --list-checks
+
+- `--json` — emit the report as JSON instead of text.
+- `--check NAME` — run only the named check (e.g. `foundation`) instead of
+  every registered check.
+- `--list-checks` — print the registered check names (one per line, in stable
+  registration order) and exit 0. This is a discovery flag: it does not require
+  a project dir and does not run any check.
 
 Output is fully deterministic.
+
+### Exit codes
+
+| Code | Meaning |
+|---|---|
+| 0 | go — no check FAILed (or `--list-checks` succeeded) |
+| 1 | no-go — at least one check FAILed |
+| 2 | usage error — non-existent project dir, a file passed as the project dir, an unknown `--check` name, or `check` with neither a project dir nor `--list-checks` |
+
+### JSON output shape
+
+With `--json`, the report is a JSON object with three top-level keys:
+
+- `verdict` (bool) — `true` for go, `false` for no-go.
+- `summary` (string) — the stable status-count line, identical to
+  `Report.summary()`, e.g. `"pass=3 fail=1 warn=1 skip=1"`.
+- `checks` (list) — one object per check, in stable registration order, each
+  with `name`, `status` (`pass`/`fail`/`warn`/`skip`), and `detail`.
+
+Keys are sorted and the output is indented with 2 spaces, so it is byte-stable
+for a given report.
 
 ## Development
 

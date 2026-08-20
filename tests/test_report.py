@@ -146,10 +146,21 @@ def test_render_json_byte_stable_for_sample_report() -> None:
         '      "status": "skip"\n'
         "    }\n"
         "  ],\n"
+        '  "summary": "pass=1 fail=0 warn=1 skip=1",\n'
         '  "verdict": true\n'
         "}\n"
     )
     assert render_json(report) == expected
+
+
+def test_render_json_summary_equals_report_summary() -> None:
+    # The top-level JSON "summary" field must be the same string as Report.summary().
+    report = _sample_report()
+    data = json.loads(render_json(report))
+    assert data["summary"] == report.summary()
+    # Holds for an empty report too.
+    empty = Report()
+    assert json.loads(render_json(empty))["summary"] == empty.summary() == "pass=0 fail=0 warn=0 skip=0"
 
 
 # ---------------------------------------------------------------------------
