@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from loop_doctor.report import Check, Report, Status, exit_code, render_json, render_text
 
 
@@ -148,3 +150,72 @@ def test_render_json_byte_stable_for_sample_report() -> None:
         "}\n"
     )
     assert render_json(report) == expected
+
+
+# ---------------------------------------------------------------------------
+# Cycle 8: explicit aggregate go/no-go tests across all six real checks.
+# ---------------------------------------------------------------------------
+
+# The six registered check names, in stable registration order.
+SIX_CHECKS = ["foundation", "protocol", "prompt", "bash", "run_health", "endpoint"]
+
+
+def _six_checks(status_map: dict[str, Status]) -> list[Check]:
+    """Build the six named checks, defaulting to PASS, overridden by status_map."""
+    return [Check(name, status_map.get(name, Status.PASS)) for name in SIX_CHECKS]
+
+
+def test_aggregate_go_when_every_check_pass_warn_skip() -> None:
+    # A mix of PASS/WARN/SKIP across all six real checks -> GO (exit 0).
+    checks = [
+        Check("foundation", Status.PASS),
+        Check("protocol", Status.WARN),
+        Check("prompt", Status.SKIP),
+        Check("bash", Status.PASS),
+        Check("run_health", Status.SKIP),
+        Check("endpoint", Status.WARN),
+    ]
+    report = Report(checks=checks)
+    assert report.verdict is True
+    assert report.go is True
+    assert exit_code(report) == 0
+
+
+@pytest.mark.parametrize("failing", SIX_CHECKS)
+def test_aggregate_nogo_when_any_single_check_fails(failing: str) -> None:
+    # Exactly one of the six checks FAILs (the parametrized one) -> NO-GO (exit 1).
+    status_map = {name: Status.PASS for name in SIX_CHECKS}
+    status_map[failing] = Status.FAIL
+    checks = _six_checks(status_map)
+    report = Report(checks=checks)
+    assert report.verdict is False
+    assert report.go is False
+    assert exit_code(report) == 1
+    # The failing check is exactly the one we parametrized.
+    failing_check = next(c for c in checks if c.name == failing)
+    assert failing_check.status is Status.FAIL
+    # Every other check is PASS.
+    others = [c for c in checks if c.name != failing]
+    assert all(c.status is Status.PASS for c in others)
+
+
+def test_aggregate_verdict_independent_of_insertion_order() -> None:
+    # The same six checks in two different insertion orders -> same verdict + summary.
+    checks_a = [
+        Check("foundation", Status.PASS),
+        Check("protocol", Status.FAIL),
+        Check("prompt", Status.SKIP),
+        Check("bash", Status.WARN),
+        Check("run_health", Status.PASS),
+        Check("endpoint", Status.PASS),
+    ]
+    checks_b = list(reversed(checks_a))
+    report_a = Report(checks=checks_a)
+    report_b = Report(checks=checks_b)
+    # Both are NO-GO (protocol FAILs) regardless of order.
+    assert report_a.verdict is False
+    assert report_b.verdict is False
+    assert report_a.verdict is report_b.verdict
+    # The summary (status counts) is identical regardless of order.
+    assert report_a.summary() == report_b.summary()
+    assert report_a.summary() == "pass=3 fail=1 warn=1 skip=1"

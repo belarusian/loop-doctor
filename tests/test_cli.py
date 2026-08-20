@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import importlib.util
 import json
 from pathlib import Path
+
+import pytest
 
 import loop_doctor.endpoint as endpoint_mod
 from loop_doctor.cli import main
@@ -275,3 +278,142 @@ def test_check_nogo_when_endpoint_fails(tmp_path: Path, capsys, monkeypatch) -> 
     assert code == 1
     out = capsys.readouterr().out
     assert "verdict: NO-GO" in out
+
+
+# ---------------------------------------------------------------------------
+# Cycle 8: exit-code contract across all six checks + JSON verdict consistency.
+# ---------------------------------------------------------------------------
+
+# The six registered check names, in stable registration order.
+SIX_CHECKS = ["foundation", "protocol", "prompt", "bash", "run_health", "endpoint"]
+
+
+def _dep_available(name: str) -> bool:
+    """Return True if the optional dependency ``name`` is importable."""
+    return importlib.util.find_spec(name) is not None
+
+
+def _seam_foundation(tmp_path: Path, monkeypatch) -> None:
+    """Make foundation FAIL: remove the runner prompt (missing 3-file set)."""
+    (tmp_path / "ai" / "loop-doctor-cycle-runner-prompt.md").unlink()
+
+
+def _seam_protocol(tmp_path: Path, monkeypatch) -> None:
+    """Make protocol FAIL: rewrite the gate log without a THE SEED block."""
+    (tmp_path / "ai" / "cycle-001-loop-doctor-gate.md").write_text(
+        "# cycle-001 gate\n\nno seed block here\n", encoding="utf-8"
+    )
+
+
+def _seam_prompt(tmp_path: Path, monkeypatch) -> None:
+    """Make prompt FAIL: a runner prompt that passes an unknown flag."""
+    spokes_dir = tmp_path / "spokes"
+    spokes_dir.mkdir(parents=True, exist_ok=True)
+    (spokes_dir / "foo.py").write_text(
+        "import argparse\nparser = argparse.ArgumentParser()\n"
+        "parser.add_argument('--goal', required=True)\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "ai" / "loop-doctor-cycle-runner-prompt.md").write_text(
+        f"python {spokes_dir}/foo.py --goal x --bogus y", encoding="utf-8"
+    )
+
+
+def _seam_bash(tmp_path: Path, monkeypatch) -> None:
+    """Make bash FAIL: a .sh driver with a syntax error."""
+    proj = tmp_path / "proj"
+    proj.mkdir(parents=True, exist_ok=True)
+    (proj / "run.sh").write_text(
+        "#!/usr/bin/env bash\nif [ -z $x; then\n  echo hi\n", encoding="utf-8"
+    )
+
+
+def _seam_run_health(tmp_path: Path, monkeypatch) -> None:
+    """Make run_health FAIL: cycles.out with a missing cycle number (1 and 3)."""
+    ai_dir = tmp_path / "ai"
+    traj_dir = ai_dir / "trajectories"
+    traj_dir.mkdir(parents=True, exist_ok=True)
+    for n in (1, 3):
+        (traj_dir / f"trajectory_{n:04d}.json").write_text(
+            json.dumps({"outcome": "exit:task_complete", "messages": []}),
+            encoding="utf-8",
+        )
+    lines = []
+    for n in (1, 3):
+        lines.append(f"========== CYCLE {n}  10:00:{n:02d}Z ==========")
+        lines.append(f"OUTER trajectory saved to: {traj_dir / f'trajectory_{n:04d}.json'}")
+        lines.append("OUTER outcome: exit:task_complete")
+    (ai_dir / "cycles.out").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _seam_endpoint(tmp_path: Path, monkeypatch) -> None:
+    """Make endpoint FAIL: every endpoint unreachable."""
+    monkeypatch.setattr(endpoint_mod, "_probe", lambda *a, **k: False)
+
+
+_SEAMS = {
+    "foundation": _seam_foundation,
+    "protocol": _seam_protocol,
+    "prompt": _seam_prompt,
+    "bash": _seam_bash,
+    "run_health": _seam_run_health,
+    "endpoint": _seam_endpoint,
+}
+
+
+def test_exit_code_zero_when_all_pass_or_skip(tmp_path: Path, capsys) -> None:
+    # A well-formed project: every check is PASS or SKIP -> exit 0, verdict true.
+    _make_ai_dir(tmp_path / "ai")
+    code = main(["check", str(tmp_path), "--json"])
+    data = json.loads(capsys.readouterr().out)
+    assert code == 0
+    assert data["verdict"] is True
+    assert [c["name"] for c in data["checks"]] == SIX_CHECKS
+    assert all(c["status"] != "fail" for c in data["checks"])
+
+
+@pytest.mark.parametrize("check_name", SIX_CHECKS)
+def test_exit_code_one_when_check_fails(
+    check_name: str, tmp_path: Path, capsys, monkeypatch
+) -> None:
+    # Force the parametrized check to FAIL via its seam -> exit 1, verdict false.
+    if check_name == "prompt" and not _dep_available("spoke_lint"):
+        pytest.skip("spoke_lint not installed")
+    if check_name == "run_health" and not _dep_available("fourseer"):
+        pytest.skip("fourseer not installed")
+    _make_ai_dir(tmp_path / "ai")
+    _SEAMS[check_name](tmp_path, monkeypatch)
+    code = main(["check", str(tmp_path), "--json"])
+    data = json.loads(capsys.readouterr().out)
+    assert code == 1
+    assert data["verdict"] is False
+    target = next(c for c in data["checks"] if c["name"] == check_name)
+    assert target["status"] == "fail"
+
+
+def test_exit_code_two_for_nonexistent_dir(tmp_path: Path, capsys) -> None:
+    code = main(["check", str(tmp_path / "no-such-dir-xyz")])
+    assert code == 2
+    assert "usage error" in capsys.readouterr().err
+
+
+def test_exit_code_two_for_unknown_check(tmp_path: Path, capsys) -> None:
+    _make_ai_dir(tmp_path / "ai")
+    code = main(["check", str(tmp_path), "--check", "nope"])
+    assert code == 2
+    assert "unknown check" in capsys.readouterr().err
+
+
+def test_json_verdict_matches_exit_code(tmp_path: Path, capsys, monkeypatch) -> None:
+    # GO: exit 0 <-> verdict true.
+    _make_ai_dir(tmp_path / "ai")
+    code = main(["check", str(tmp_path), "--json"])
+    data = json.loads(capsys.readouterr().out)
+    assert (code == 0) == data["verdict"]
+    assert data["verdict"] is True
+    # NO-GO: exit 1 <-> verdict false (force endpoint to FAIL).
+    monkeypatch.setattr(endpoint_mod, "_probe", lambda *a, **k: False)
+    code = main(["check", str(tmp_path), "--json"])
+    data = json.loads(capsys.readouterr().out)
+    assert (code == 1) == (not data["verdict"])
+    assert data["verdict"] is False

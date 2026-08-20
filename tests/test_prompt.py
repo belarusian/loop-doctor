@@ -12,6 +12,8 @@ import sys
 from pathlib import Path
 from unittest import mock
 
+import pytest
+
 from loop_doctor.prompt import prompt_check
 from loop_doctor.report import Status
 
@@ -64,6 +66,7 @@ def _make_project(
 
 
 def test_prompt_pass_when_invocations_match_signatures(tmp_path: Path) -> None:
+    pytest.importorskip("spoke_lint")
     spokes_dir = tmp_path / "spokes"
     prompt = f"python {spokes_dir}/foo.py --goal x --max-steps 5"
     _make_project(tmp_path, prompt_text=prompt, spokes={"foo.py": _SPOKE})
@@ -73,6 +76,7 @@ def test_prompt_pass_when_invocations_match_signatures(tmp_path: Path) -> None:
 
 
 def test_prompt_fails_on_unknown_flag(tmp_path: Path) -> None:
+    pytest.importorskip("spoke_lint")
     spokes_dir = tmp_path / "spokes"
     prompt = f"python {spokes_dir}/foo.py --goal x --bogus y"
     _make_project(tmp_path, prompt_text=prompt, spokes={"foo.py": _SPOKE})
@@ -83,6 +87,7 @@ def test_prompt_fails_on_unknown_flag(tmp_path: Path) -> None:
 
 
 def test_prompt_fails_on_missing_script(tmp_path: Path) -> None:
+    pytest.importorskip("spoke_lint")
     spokes_dir = tmp_path / "spokes"
     prompt = f"python {spokes_dir}/nope.py --goal x"
     _make_project(tmp_path, prompt_text=prompt, spokes={"foo.py": _SPOKE})
