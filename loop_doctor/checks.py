@@ -5,8 +5,8 @@ registered by name in a module-level registry and composed into a single
 ``Report`` by the CLI. ``run_all`` runs every registered check in a stable
 registration order and returns the list of ``Check`` results.
 
-This module is dependency-free: it imports only from ``loop_doctor.project``
-and ``loop_doctor.report`` (no spoke-lint / fourseer).
+This module is dependency-free: it imports only from ``loop_doctor.project``,
+``loop_doctor.protocol``, and ``loop_doctor.report`` (no spoke-lint / fourseer).
 """
 
 from __future__ import annotations
@@ -15,6 +15,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from loop_doctor.project import resolve_project
+from loop_doctor.protocol import protocol_check
 from loop_doctor.report import Check, Status
 
 # A check is a callable that takes a project dir and returns a Check.
@@ -81,3 +82,7 @@ def _foundation(project_dir: Path) -> Check:
 # Register the foundation check at import time so run_all returns it with no
 # extra setup.
 register("foundation", _foundation)
+
+# Register the protocol check after foundation so run_all returns
+# [foundation, protocol] in stable order.
+register("protocol", protocol_check)
