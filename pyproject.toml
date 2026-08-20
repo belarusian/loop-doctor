@@ -29,6 +29,12 @@ full = [
 [project.scripts]
 loop-doctor = "loop_doctor.cli:main"
 
+[project.urls]
+Homepage = "https://github.com/belarusian/loop-doctor"
+Repository = "https://github.com/belarusian/loop-doctor"
+Documentation = "https://github.com/belarusian/loop-doctor/blob/main/docs/architecture.md"
+Issues = "https://github.com/belarusian/loop-doctor/issues"
+
 [tool.setuptools.packages.find]
 include = ["loop_doctor*"]
 
