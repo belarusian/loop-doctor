@@ -8,10 +8,30 @@ from pathlib import Path
 from loop_doctor.cli import main
 
 
+def _wellformed_gate() -> str:
+    """A well-formed gate log: a level-1 title line and a THE SEED block."""
+    return chr(10).join([
+        "# cycle-001 gate",
+        "",
+        "## THE SEED",
+        "",
+        chr(96) * 3,
+        "/home/sasha/Research/four",
+        chr(96) * 3,
+        "",
+        "## notes",
+        "append-only log",
+    ])
+
+
 def _make_ai_dir(ai_dir: Path) -> None:
     ai_dir.mkdir(parents=True, exist_ok=True)
-    (ai_dir / "cycle-001-loop-doctor-gate.md").write_text("gate", encoding="utf-8")
-    (ai_dir / "loop-doctor-cycle-runner-prompt.md").write_text("prompt", encoding="utf-8")
+    (ai_dir / "cycle-001-loop-doctor-gate.md").write_text(
+        _wellformed_gate(), encoding="utf-8"
+    )
+    (ai_dir / "loop-doctor-cycle-runner-prompt.md").write_text(
+        "prompt", encoding="utf-8"
+    )
 
 
 def test_check_returns_go_when_files_present(tmp_path: Path, capsys) -> None:
@@ -85,3 +105,38 @@ def test_go_report_returns_zero(tmp_path: Path, capsys) -> None:
 
 def test_nogo_report_returns_one(tmp_path: Path, capsys) -> None:
     assert main(["check", str(tmp_path)]) == 1
+
+
+def test_check_protocol_runs_only_that_check(tmp_path: Path, capsys) -> None:
+    _make_ai_dir(tmp_path / "ai")
+    code = main(["check", str(tmp_path), "--check", "protocol", "--json"])
+    assert code == 0
+    data = json.loads(capsys.readouterr().out)
+    assert [c["name"] for c in data["checks"]] == ["protocol"]
+    assert data["checks"][0]["status"] == "pass"
+
+
+def test_check_full_run_composes_both_checks(tmp_path: Path, capsys) -> None:
+    _make_ai_dir(tmp_path / "ai")
+    code = main(["check", str(tmp_path), "--json"])
+    assert code == 0
+    data = json.loads(capsys.readouterr().out)
+    assert [c["name"] for c in data["checks"]] == ["foundation", "protocol"]
+    assert data["verdict"] is True
+
+
+def test_check_nogo_when_protocol_fails(tmp_path: Path, capsys) -> None:
+    # A malformed gate log (no THE SEED block) makes protocol FAIL -> NO-GO.
+    ai_dir = tmp_path / "ai"
+    ai_dir.mkdir(parents=True, exist_ok=True)
+    (ai_dir / "cycle-001-loop-doctor-gate.md").write_text(
+        chr(10).join(["# cycle-001 gate", "", "no seed block here", ""]),
+        encoding="utf-8",
+    )
+    (ai_dir / "loop-doctor-cycle-runner-prompt.md").write_text(
+        "prompt", encoding="utf-8"
+    )
+    code = main(["check", str(tmp_path)])
+    assert code == 1
+    out = capsys.readouterr().out
+    assert "verdict: NO-GO" in out

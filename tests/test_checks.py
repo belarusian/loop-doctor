@@ -8,10 +8,30 @@ from loop_doctor.checks import register, run_all
 from loop_doctor.report import Check, Report, Status
 
 
+def _wellformed_gate() -> str:
+    """A well-formed gate log: a level-1 title line and a THE SEED block."""
+    return chr(10).join([
+        "# cycle-001 gate",
+        "",
+        "## THE SEED",
+        "",
+        chr(96) * 3,
+        "/home/sasha/Research/four",
+        chr(96) * 3,
+        "",
+        "## notes",
+        "append-only log",
+    ])
+
+
 def _make_ai_dir(ai_dir: Path) -> None:
     ai_dir.mkdir(parents=True, exist_ok=True)
-    (ai_dir / "cycle-001-loop-doctor-gate.md").write_text("gate", encoding="utf-8")
-    (ai_dir / "loop-doctor-cycle-runner-prompt.md").write_text("prompt", encoding="utf-8")
+    (ai_dir / "cycle-001-loop-doctor-gate.md").write_text(
+        _wellformed_gate(), encoding="utf-8"
+    )
+    (ai_dir / "loop-doctor-cycle-runner-prompt.md").write_text(
+        "prompt", encoding="utf-8"
+    )
 
 
 def test_run_all_returns_foundation_check(tmp_path: Path) -> None:
@@ -44,8 +64,9 @@ def test_registering_second_check_makes_run_all_return_both_in_stable_order(
     try:
         checks = run_all(tmp_path)
         names = [c.name for c in checks]
-        # foundation was registered at import time, so it comes first.
-        assert names == ["foundation", "second"]
+        # foundation and protocol are registered at import time, so they
+        # come first; the dynamically registered "second" comes last.
+        assert names == ["foundation", "protocol", "second"]
         # stable across repeated calls
         assert [c.name for c in run_all(tmp_path)] == names
     finally:
@@ -80,3 +101,30 @@ def test_composed_report_nogo_when_any_check_fails(tmp_path: Path) -> None:
         import loop_doctor.checks as checks_mod
 
         checks_mod._REGISTRY.pop("failing", None)
+
+
+def test_run_all_returns_foundation_then_protocol_in_stable_order(
+    tmp_path: Path,
+) -> None:
+    _make_ai_dir(tmp_path / "ai")
+    names = [c.name for c in run_all(tmp_path)]
+    assert names == ["foundation", "protocol"]
+    # stable across repeated calls
+    assert [c.name for c in run_all(tmp_path)] == names
+
+
+def test_composed_report_nogo_when_protocol_fails(tmp_path: Path) -> None:
+    # A gate log with a title line but no THE SEED block makes protocol FAIL.
+    ai_dir = tmp_path / "ai"
+    ai_dir.mkdir(parents=True, exist_ok=True)
+    (ai_dir / "cycle-001-loop-doctor-gate.md").write_text(
+        chr(10).join(["# cycle-001 gate", "", "no seed block here", ""]),
+        encoding="utf-8",
+    )
+    (ai_dir / "loop-doctor-cycle-runner-prompt.md").write_text(
+        "prompt", encoding="utf-8"
+    )
+    report = Report(checks=run_all(tmp_path))
+    protocol = next(c for c in report.checks if c.name == "protocol")
+    assert protocol.status is Status.FAIL
+    assert report.verdict is False
