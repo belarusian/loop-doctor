@@ -7,7 +7,7 @@ registration order and returns the list of ``Check`` results.
 
 This module is dependency-free: it imports only from ``loop_doctor.project``,
 ``loop_doctor.protocol``, ``loop_doctor.prompt``, ``loop_doctor.bash_check``,
-and ``loop_doctor.report`` (no spoke-lint / fourseer).
+``loop_doctor.run_health``, and ``loop_doctor.report`` (no spoke-lint / fourseer).
 """
 
 from __future__ import annotations
@@ -20,6 +20,7 @@ from loop_doctor.project import resolve_project
 from loop_doctor.prompt import prompt_check
 from loop_doctor.protocol import protocol_check
 from loop_doctor.report import Check, Status
+from loop_doctor.run_health import run_health_check
 
 # A check is a callable that takes a project dir and returns a Check.
 CheckFn = Callable[[Path], Check]
@@ -97,3 +98,7 @@ register("prompt", prompt_check)
 # Register the bash check after prompt so run_all returns
 # [foundation, protocol, prompt, bash] in stable order.
 register("bash", bash_check)
+
+# Register the run health check after bash so run_all returns
+# [foundation, protocol, prompt, bash, run_health] in stable order.
+register("run_health", run_health_check)

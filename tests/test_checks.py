@@ -66,7 +66,7 @@ def test_registering_second_check_makes_run_all_return_both_in_stable_order(
         names = [c.name for c in checks]
         # foundation and protocol are registered at import time, so they
         # come first; the dynamically registered "second" comes last.
-        assert names == ["foundation", "protocol", "prompt", "bash", "second"]
+        assert names == ["foundation", "protocol", "prompt", "bash", "run_health", "second"]
         # stable across repeated calls
         assert [c.name for c in run_all(tmp_path)] == names
     finally:
@@ -108,7 +108,7 @@ def test_run_all_returns_foundation_then_protocol_in_stable_order(
 ) -> None:
     _make_ai_dir(tmp_path / "ai")
     names = [c.name for c in run_all(tmp_path)]
-    assert names == ["foundation", "protocol", "prompt", "bash"]
+    assert names == ["foundation", "protocol", "prompt", "bash", "run_health"]
     # stable across repeated calls
     assert [c.name for c in run_all(tmp_path)] == names
 
@@ -202,4 +202,46 @@ def test_composed_report_nogo_when_bash_fails(tmp_path: Path) -> None:
     report = Report(checks=run_all(tmp_path))
     bash = next(c for c in report.checks if c.name == "bash")
     assert bash.status is Status.FAIL
+    assert report.verdict is False
+
+
+def test_composed_report_nogo_when_run_health_fails(tmp_path: Path) -> None:
+    # A cycles.out with a missing cycle number makes run_health FAIL -> NO-GO.
+    ai_dir = tmp_path / "ai"
+    ai_dir.mkdir(parents=True, exist_ok=True)
+    (ai_dir / "cycle-001-loop-doctor-gate.md").write_text(
+        chr(10).join([
+            "# cycle-001 gate",
+            "",
+            "## THE SEED",
+            "",
+            chr(96) * 3,
+            "/home/sasha/Research/four",
+            chr(96) * 3,
+            "",
+        ]),
+        encoding="utf-8",
+    )
+    (ai_dir / "loop-doctor-cycle-runner-prompt.md").write_text(
+        "prompt", encoding="utf-8"
+    )
+    traj_dir = ai_dir / "trajectories"
+    traj_dir.mkdir(parents=True, exist_ok=True)
+    import json as _json
+
+    for n in (1, 3):
+        (traj_dir / f"trajectory_{n:04d}.json").write_text(
+            _json.dumps({"outcome": "exit:task_complete", "messages": []}),
+            encoding="utf-8",
+        )
+    nl = chr(10)
+    lines = []
+    for n in (1, 3):
+        lines.append(f"========== CYCLE {n}  10:00:{n:02d}Z ==========")
+        lines.append(f"OUTER trajectory saved to: {traj_dir / f'trajectory_{n:04d}.json'}")
+        lines.append("OUTER outcome: exit:task_complete")
+    (ai_dir / "cycles.out").write_text(nl.join(lines) + nl, encoding="utf-8")
+    report = Report(checks=run_all(tmp_path))
+    run_health = next(c for c in report.checks if c.name == "run_health")
+    assert run_health.status is Status.FAIL
     assert report.verdict is False
