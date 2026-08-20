@@ -15,6 +15,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from loop_doctor.project import resolve_project
+from loop_doctor.prompt import prompt_check
 from loop_doctor.protocol import protocol_check
 from loop_doctor.report import Check, Status
 
@@ -86,3 +87,7 @@ register("foundation", _foundation)
 # Register the protocol check after foundation so run_all returns
 # [foundation, protocol] in stable order.
 register("protocol", protocol_check)
+
+# Register the prompt check after protocol so run_all returns
+# [foundation, protocol, prompt] in stable order.
+register("prompt", prompt_check)
