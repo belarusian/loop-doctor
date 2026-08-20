@@ -121,7 +121,8 @@ def test_check_full_run_composes_both_checks(tmp_path: Path, capsys) -> None:
     code = main(["check", str(tmp_path), "--json"])
     assert code == 0
     data = json.loads(capsys.readouterr().out)
-    assert [c["name"] for c in data["checks"]] == ["foundation", "protocol", "prompt", "bash"]
+    names = [c["name"] for c in data["checks"]]
+    assert names == ["foundation", "protocol", "prompt", "bash", "run_health"]
     assert data["verdict"] is True
 
 
@@ -213,6 +214,42 @@ def test_check_nogo_when_bash_fails(tmp_path: Path, capsys) -> None:
         ]),
         encoding="utf-8",
     )
+    code = main(["check", str(tmp_path)])
+    assert code == 1
+    out = capsys.readouterr().out
+    assert "verdict: NO-GO" in out
+
+
+def test_check_run_health_runs_only_that_check(tmp_path: Path, capsys) -> None:
+    _make_ai_dir(tmp_path / "ai")
+    code = main(["check", str(tmp_path), "--check", "run_health", "--json"])
+    assert code == 0
+    data = json.loads(capsys.readouterr().out)
+    assert [c["name"] for c in data["checks"]] == ["run_health"]
+    # No cycles.out in the fixture -> SKIP (non-blocking) -> exit 0.
+    assert data["checks"][0]["status"] == "skip"
+
+
+def test_check_nogo_when_run_health_fails(tmp_path: Path, capsys) -> None:
+    # A cycles.out with a missing cycle number makes run_health FAIL -> NO-GO.
+    _make_ai_dir(tmp_path / "ai")
+    ai_dir = tmp_path / "ai"
+    traj_dir = ai_dir / "trajectories"
+    traj_dir.mkdir(parents=True, exist_ok=True)
+    import json as _json
+
+    for n in (1, 3):
+        (traj_dir / f"trajectory_{n:04d}.json").write_text(
+            _json.dumps({"outcome": "exit:task_complete", "messages": []}),
+            encoding="utf-8",
+        )
+    nl = chr(10)
+    lines = []
+    for n in (1, 3):
+        lines.append(f"========== CYCLE {n}  10:00:{n:02d}Z ==========")
+        lines.append(f"OUTER trajectory saved to: {traj_dir / f'trajectory_{n:04d}.json'}")
+        lines.append("OUTER outcome: exit:task_complete")
+    (ai_dir / "cycles.out").write_text(nl.join(lines) + nl, encoding="utf-8")
     code = main(["check", str(tmp_path)])
     assert code == 1
     out = capsys.readouterr().out
