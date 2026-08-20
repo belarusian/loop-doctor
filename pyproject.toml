@@ -8,7 +8,10 @@ version = "0.0.1"
 description = "Pre-flight readiness auditor for the four pipeline."
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = [
+dependencies = []
+
+[project.optional-dependencies]
+full = [
     "spoke-lint @ git+https://github.com/belarusian/spoke-lint.git",
     "fourseer @ git+https://github.com/belarusian/fourseer.git",
 ]

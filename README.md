@@ -29,6 +29,10 @@ Output is fully deterministic.
     ruff check loop_doctor/
     mypy loop_doctor/ --ignore-missing-imports
 
-`spoke-lint` and `fourseer` are pinned git dependencies on the published repos
-`belarusian/spoke-lint` and `belarusian/fourseer`. The four framework is a
-read-only protocol seed, never copied into the repo.
+The base install is dependency-free: the Foundation (CLI, dir resolution,
+report model) imports nothing external, so it builds and tests hermetically.
+`spoke-lint` and `fourseer` are optional git extras on the published repos
+`belarusian/spoke-lint` and `belarusian/fourseer`, installed with
+`pip install -e .[full]` and imported lazily by the capabilities that need
+them (prompt lint, run health). The four framework is a read-only protocol
+seed, never copied into the repo.
