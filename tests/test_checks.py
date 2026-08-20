@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import loop_doctor.endpoint as endpoint_mod
 from loop_doctor.checks import register, run_all
 from loop_doctor.report import Check, Report, Status
 
@@ -66,7 +67,9 @@ def test_registering_second_check_makes_run_all_return_both_in_stable_order(
         names = [c.name for c in checks]
         # foundation and protocol are registered at import time, so they
         # come first; the dynamically registered "second" comes last.
-        assert names == ["foundation", "protocol", "prompt", "bash", "run_health", "second"]
+        assert names == [
+            "foundation", "protocol", "prompt", "bash", "run_health", "endpoint", "second",
+        ]
         # stable across repeated calls
         assert [c.name for c in run_all(tmp_path)] == names
     finally:
@@ -108,7 +111,7 @@ def test_run_all_returns_foundation_then_protocol_in_stable_order(
 ) -> None:
     _make_ai_dir(tmp_path / "ai")
     names = [c.name for c in run_all(tmp_path)]
-    assert names == ["foundation", "protocol", "prompt", "bash", "run_health"]
+    assert names == ["foundation", "protocol", "prompt", "bash", "run_health", "endpoint"]
     # stable across repeated calls
     assert [c.name for c in run_all(tmp_path)] == names
 
@@ -244,4 +247,14 @@ def test_composed_report_nogo_when_run_health_fails(tmp_path: Path) -> None:
     report = Report(checks=run_all(tmp_path))
     run_health = next(c for c in report.checks if c.name == "run_health")
     assert run_health.status is Status.FAIL
+    assert report.verdict is False
+
+
+def test_composed_report_nogo_when_endpoint_fails(tmp_path: Path, monkeypatch) -> None:
+    # An unreachable endpoint makes the endpoint check FAIL -> NO-GO.
+    _make_ai_dir(tmp_path / "ai")
+    monkeypatch.setattr(endpoint_mod, "_probe", lambda *a, **k: False)
+    report = Report(checks=run_all(tmp_path))
+    endpoint = next(c for c in report.checks if c.name == "endpoint")
+    assert endpoint.status is Status.FAIL
     assert report.verdict is False
