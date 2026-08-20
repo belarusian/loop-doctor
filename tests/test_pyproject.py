@@ -24,3 +24,9 @@ def test_git_deps_moved_to_full_extra() -> None:
 
 def test_entry_point_preserved() -> None:
     assert "loop-doctor = " + chr(34) + "loop_doctor.cli:main" + chr(34) in _text()
+
+
+def test_project_urls_table_present() -> None:
+    text = _text()
+    assert "[project.urls]" in text
+    assert "github.com/belarusian/loop-doctor" in text
