@@ -121,7 +121,7 @@ def test_check_full_run_composes_both_checks(tmp_path: Path, capsys) -> None:
     code = main(["check", str(tmp_path), "--json"])
     assert code == 0
     data = json.loads(capsys.readouterr().out)
-    assert [c["name"] for c in data["checks"]] == ["foundation", "protocol"]
+    assert [c["name"] for c in data["checks"]] == ["foundation", "protocol", "prompt"]
     assert data["verdict"] is True
 
 
@@ -135,6 +135,53 @@ def test_check_nogo_when_protocol_fails(tmp_path: Path, capsys) -> None:
     )
     (ai_dir / "loop-doctor-cycle-runner-prompt.md").write_text(
         "prompt", encoding="utf-8"
+    )
+    code = main(["check", str(tmp_path)])
+    assert code == 1
+    out = capsys.readouterr().out
+    assert "verdict: NO-GO" in out
+
+
+def test_check_prompt_runs_only_that_check(tmp_path: Path, capsys) -> None:
+    _make_ai_dir(tmp_path / "ai")
+    code = main(["check", str(tmp_path), "--check", "prompt", "--json"])
+    assert code == 0
+    data = json.loads(capsys.readouterr().out)
+    assert [c["name"] for c in data["checks"]] == ["prompt"]
+    assert data["checks"][0]["status"] == "pass"
+
+
+def test_check_nogo_when_prompt_fails(tmp_path: Path, capsys) -> None:
+    # A runner prompt that passes an unknown flag makes the prompt check FAIL.
+    ai_dir = tmp_path / "ai"
+    ai_dir.mkdir(parents=True, exist_ok=True)
+    (ai_dir / "cycle-001-loop-doctor-gate.md").write_text(
+        chr(10).join([
+            "# cycle-001 gate",
+            "",
+            "## THE SEED",
+            "",
+            chr(96) * 3,
+            "/home/sasha/Research/four",
+            chr(96) * 3,
+            "",
+        ]),
+        encoding="utf-8",
+    )
+    spokes_dir = tmp_path / "spokes"
+    spokes_dir.mkdir(parents=True, exist_ok=True)
+    (spokes_dir / "foo.py").write_text(
+        chr(10).join([
+            "import argparse",
+            "parser = argparse.ArgumentParser()",
+            'parser.add_argument("--goal", required=True)',
+            "",
+        ]),
+        encoding="utf-8",
+    )
+    (ai_dir / "loop-doctor-cycle-runner-prompt.md").write_text(
+        f"python {spokes_dir}/foo.py --goal x --bogus y",
+        encoding="utf-8",
     )
     code = main(["check", str(tmp_path)])
     assert code == 1
