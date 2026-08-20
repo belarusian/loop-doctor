@@ -8,6 +8,16 @@ version = "0.0.1"
 description = "Pre-flight readiness auditor for the four pipeline."
 readme = "README.md"
 requires-python = ">=3.10"
+authors = [{ name = "belarusian" }]
+keywords = ["pre-flight", "readiness", "auditor", "ci", "pipeline"]
+classifiers = [
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
+    "Environment :: Console",
+    "License :: OSI Approved :: MIT License",
+]
 dependencies = []
 
 [project.optional-dependencies]

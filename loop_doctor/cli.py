@@ -2,8 +2,9 @@
 
 Provides the ``check`` subcommand: resolve the project, run the registered
 checks (or a single named check with ``--check``), and render the report
-(text by default, JSON with ``--json``). Exit codes: 0 = go, 1 = no-go,
-2 = usage error.
+(text by default, JSON with ``--json``). ``--list-checks`` prints the
+registered check names and exits 0 without requiring a project dir or running
+any check. Exit codes: 0 = go, 1 = no-go, 2 = usage error.
 """
 
 from __future__ import annotations
@@ -21,13 +22,24 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="loop-doctor")
     sub = parser.add_subparsers(dest="command", required=True)
     check = sub.add_parser("check", help="run the pre-flight readiness check")
-    check.add_argument("project_dir", help="the proj dir or its parent")
+    check.add_argument(
+        "project_dir",
+        nargs="?",
+        default=None,
+        help="the proj dir or its parent (not required with --list-checks)",
+    )
     check.add_argument("--json", action="store_true", help="emit JSON instead of text")
     check.add_argument(
         "--check",
         dest="check",
         metavar="NAME",
         help="run only the named check (e.g. foundation)",
+    )
+    check.add_argument(
+        "--list-checks",
+        action="store_true",
+        help="print the registered check names (one per line) and exit 0; "
+        "no project dir is required and no check is run",
     )
     return parser
 
@@ -59,6 +71,15 @@ def main(argv: list[str] | None = None) -> int:
     except SystemExit as exc:
         code = exc.code
         return 0 if code is None else int(code)
+
+    if args.list_checks:
+        for name in checks_mod.registered_names():
+            sys.stdout.write(name + "\n")
+        return 0
+
+    if args.project_dir is None:
+        sys.stderr.write("usage error: project dir is required\n")
+        return 2
 
     project_dir = Path(args.project_dir)
     if not project_dir.is_dir():

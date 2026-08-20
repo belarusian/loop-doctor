@@ -417,3 +417,62 @@ def test_json_verdict_matches_exit_code(tmp_path: Path, capsys, monkeypatch) -> 
     data = json.loads(capsys.readouterr().out)
     assert (code == 1) == (not data["verdict"])
     assert data["verdict"] is False
+
+
+# ---------------------------------------------------------------------------
+# Cycle 9: --list-checks discovery flag + file-as-project-dir edge case.
+# ---------------------------------------------------------------------------
+
+def test_list_checks_prints_registered_names(tmp_path: Path, capsys) -> None:
+    # --list-checks prints every registered check name, one per line.
+    code = main(["check", "--list-checks"])
+    assert code == 0
+    out = capsys.readouterr().out
+    assert out.splitlines() == SIX_CHECKS
+
+
+def test_list_checks_returns_zero(tmp_path: Path, capsys) -> None:
+    assert main(["check", "--list-checks"]) == 0
+
+
+def test_list_checks_requires_no_project_dir(tmp_path: Path, capsys) -> None:
+    # No project dir is passed at all; it must not be required.
+    code = main(["check", "--list-checks"])
+    assert code == 0
+    # Nothing is written to stderr (no usage error).
+    assert capsys.readouterr().err == ""
+
+
+def test_list_checks_runs_no_check(tmp_path: Path, capsys) -> None:
+    # --list-checks must not run any check: even a non-existent dir is fine,
+    # and the output is the check names, not a report.
+    code = main(["check", "--list-checks"])
+    out = capsys.readouterr().out
+    assert "verdict" not in out
+    assert out.splitlines() == SIX_CHECKS
+    assert code == 0
+
+
+def test_list_checks_works_with_nonexistent_dir(tmp_path: Path, capsys) -> None:
+    # A bogus dir is ignored because no check is run.
+    code = main(["check", str(tmp_path / "does-not-exist-xyz-123"), "--list-checks"])
+    assert code == 0
+    assert capsys.readouterr().out.splitlines() == SIX_CHECKS
+
+
+def test_check_without_dir_or_list_checks_returns_exit_2(tmp_path: Path, capsys) -> None:
+    # project_dir is now optional; with neither a dir nor --list-checks it is a usage error.
+    code = main(["check"])
+    assert code == 2
+    assert "usage error" in capsys.readouterr().err
+
+
+def test_file_as_project_dir_returns_exit_2(tmp_path: Path, capsys) -> None:
+    # A regular file (not a dir) passed as the project dir is a usage error -> 2.
+    f = tmp_path / "not-a-dir.txt"
+    f.write_text("hello", encoding="utf-8")
+    code = main(["check", str(f)])
+    assert code == 2
+    err = capsys.readouterr().err
+    assert "usage error" in err
+    assert "does not exist" in err
