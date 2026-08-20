@@ -1,0 +1,7 @@
+verdict: GO
+PASS  foundation — ai dir /home/sasha/AI/loop-doctor/ai
+PASS  protocol — 3-file set present and well-formed
+PASS  prompt — spoke-lint: 0 issues
+PASS  bash — 2 driver(s) pass bash -n
+SKIP  run_health — no cycles.out found
+PASS  endpoint — both endpoints reachable

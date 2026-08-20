@@ -1,0 +1,36 @@
+{
+  "checks": [
+    {
+      "detail": "ai dir /home/sasha/AI/loop-doctor/ai",
+      "name": "foundation",
+      "status": "pass"
+    },
+    {
+      "detail": "3-file set present and well-formed",
+      "name": "protocol",
+      "status": "pass"
+    },
+    {
+      "detail": "spoke-lint: 0 issues",
+      "name": "prompt",
+      "status": "pass"
+    },
+    {
+      "detail": "2 driver(s) pass bash -n",
+      "name": "bash",
+      "status": "pass"
+    },
+    {
+      "detail": "no cycles.out found",
+      "name": "run_health",
+      "status": "skip"
+    },
+    {
+      "detail": "both endpoints reachable",
+      "name": "endpoint",
+      "status": "pass"
+    }
+  ],
+  "summary": "pass=5 fail=0 warn=0 skip=1",
+  "verdict": true
+}

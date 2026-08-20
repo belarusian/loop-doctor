@@ -13,6 +13,7 @@ import argparse
 import sys
 from pathlib import Path
 
+from loop_doctor import __version__
 from loop_doctor import checks as checks_mod
 from loop_doctor.report import Report, exit_code, render_json, render_text
 
@@ -20,6 +21,12 @@ from loop_doctor.report import Report, exit_code, render_json, render_text
 def build_parser() -> argparse.ArgumentParser:
     """Build the argument parser with a single ``check`` subcommand."""
     parser = argparse.ArgumentParser(prog="loop-doctor")
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"loop-doctor {__version__}",
+        help="print the loop-doctor version and exit",
+    )
     sub = parser.add_subparsers(dest="command", required=True)
     check = sub.add_parser("check", help="run the pre-flight readiness check")
     check.add_argument(
