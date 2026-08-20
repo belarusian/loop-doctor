@@ -1,0 +1,23 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - name: Install
+        run: |
+          pip install -e . pytest ruff mypy
+      - name: Pytest
+        run: pytest tests/ -x -q
+      - name: Ruff
+        run: ruff check loop_doctor/
+      - name: Mypy
+        run: mypy loop_doctor/ --ignore-missing-imports
