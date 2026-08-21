@@ -22,8 +22,8 @@ dependencies = []
 
 [project.optional-dependencies]
 full = [
-    "spoke-lint @ git+https://github.com/belarusian/spoke-lint.git",
-    "fourseer @ git+https://github.com/belarusian/fourseer.git",
+    "spoke-lint @ git+https://github.com/belarusian/spoke-lint.git@ac8196327a7cf4987f8bf76d1b13da61b4f7fe5f",
+    "fourseer @ git+https://github.com/belarusian/fourseer.git@6537691469b567d0c5e5858f32ad1152b2596e1d",
 ]
 
 [project.scripts]
