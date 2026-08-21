@@ -127,7 +127,7 @@ def test_check_full_run_composes_both_checks(tmp_path: Path, capsys) -> None:
     assert code == 0
     data = json.loads(capsys.readouterr().out)
     names = [c["name"] for c in data["checks"]]
-    assert names == ["foundation", "protocol", "prompt", "bash", "run_health", "endpoint"]
+    assert names == ["foundation", "protocol", "prompt", "bash", "run_health", "endpoint", "ci"]
     assert data["verdict"] is True
 
 
@@ -288,8 +288,8 @@ def test_check_nogo_when_endpoint_fails(tmp_path: Path, capsys, monkeypatch) -> 
 # Cycle 8: exit-code contract across all six checks + JSON verdict consistency.
 # ---------------------------------------------------------------------------
 
-# The six registered check names, in stable registration order.
-SIX_CHECKS = ["foundation", "protocol", "prompt", "bash", "run_health", "endpoint"]
+# The seven registered check names, in stable registration order.
+SEVEN_CHECKS = ["foundation", "protocol", "prompt", "bash", "run_health", "endpoint", "ci"]
 
 
 def _dep_available(name: str) -> bool:
@@ -353,6 +353,33 @@ def _seam_run_health(tmp_path: Path, monkeypatch) -> None:
 def _seam_endpoint(tmp_path: Path, monkeypatch) -> None:
     """Make endpoint FAIL: every endpoint unreachable."""
     monkeypatch.setattr(endpoint_mod, "_probe", lambda *a, **k: False)
+def _seam_ci(tmp_path: Path, monkeypatch) -> None:
+    """Make ci FAIL: a red check run on origin/main head.
+
+    Drives the ``loop_doctor.ci._run`` seam to return canned git/gh results in
+    the order ``ci_check`` issues them: inside work tree, a GitHub origin URL,
+    fetch ok, rev-parse ok, and a gh check-runs payload with one failure.
+    """
+    import json as _json
+    import subprocess as _subprocess
+    import loop_doctor.ci as ci_mod
+
+    sha = "abcdef0123456789abcdef0123456789abcdef01"
+
+    def _cp(rc: int, stdout: str = "", stderr: str = "") -> _subprocess.CompletedProcess:
+        return _subprocess.CompletedProcess(args=[], returncode=rc, stdout=stdout, stderr=stderr)
+
+    responses = [
+        _cp(0, stdout="true\n"),
+        _cp(0, stdout="https://github.com/belarusian/loop-doctor.git\n"),
+        _cp(0),
+        _cp(0, stdout=sha + "\n"),
+        _cp(0, stdout=_json.dumps({"total_count": 1, "check_runs": [
+            {"name": "test", "status": "completed", "conclusion": "failure"},
+        ]})),
+    ]
+    it = iter(responses)
+    monkeypatch.setattr(ci_mod, "_run", lambda cmd: next(it))
 
 
 _SEAMS = {
@@ -362,6 +389,7 @@ _SEAMS = {
     "bash": _seam_bash,
     "run_health": _seam_run_health,
     "endpoint": _seam_endpoint,
+    "ci": _seam_ci,
 }
 
 
@@ -372,11 +400,11 @@ def test_exit_code_zero_when_all_pass_or_skip(tmp_path: Path, capsys) -> None:
     data = json.loads(capsys.readouterr().out)
     assert code == 0
     assert data["verdict"] is True
-    assert [c["name"] for c in data["checks"]] == SIX_CHECKS
+    assert [c["name"] for c in data["checks"]] == SEVEN_CHECKS
     assert all(c["status"] != "fail" for c in data["checks"])
 
 
-@pytest.mark.parametrize("check_name", SIX_CHECKS)
+@pytest.mark.parametrize("check_name", SEVEN_CHECKS)
 def test_exit_code_one_when_check_fails(
     check_name: str, tmp_path: Path, capsys, monkeypatch
 ) -> None:
@@ -432,7 +460,7 @@ def test_list_checks_prints_registered_names(tmp_path: Path, capsys) -> None:
     code = main(["check", "--list-checks"])
     assert code == 0
     out = capsys.readouterr().out
-    assert out.splitlines() == SIX_CHECKS
+    assert out.splitlines() == SEVEN_CHECKS
 
 
 def test_list_checks_returns_zero(tmp_path: Path, capsys) -> None:
@@ -453,7 +481,7 @@ def test_list_checks_runs_no_check(tmp_path: Path, capsys) -> None:
     code = main(["check", "--list-checks"])
     out = capsys.readouterr().out
     assert "verdict" not in out
-    assert out.splitlines() == SIX_CHECKS
+    assert out.splitlines() == SEVEN_CHECKS
     assert code == 0
 
 
@@ -461,7 +489,7 @@ def test_list_checks_works_with_nonexistent_dir(tmp_path: Path, capsys) -> None:
     # A bogus dir is ignored because no check is run.
     code = main(["check", str(tmp_path / "does-not-exist-xyz-123"), "--list-checks"])
     assert code == 0
-    assert capsys.readouterr().out.splitlines() == SIX_CHECKS
+    assert capsys.readouterr().out.splitlines() == SEVEN_CHECKS
 
 
 def test_check_without_dir_or_list_checks_returns_exit_2(tmp_path: Path, capsys) -> None:
