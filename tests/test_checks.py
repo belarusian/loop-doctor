@@ -70,7 +70,7 @@ def test_registering_second_check_makes_run_all_return_both_in_stable_order(
         # foundation and protocol are registered at import time, so they
         # come first; the dynamically registered "second" comes last.
         assert names == [
-            "foundation", "protocol", "prompt", "bash", "run_health", "endpoint", "second",
+            "foundation", "protocol", "prompt", "bash", "run_health", "endpoint", "ci", "second",
         ]
         # stable across repeated calls
         assert [c.name for c in run_all(tmp_path)] == names
@@ -113,7 +113,7 @@ def test_run_all_returns_foundation_then_protocol_in_stable_order(
 ) -> None:
     _make_ai_dir(tmp_path / "ai")
     names = [c.name for c in run_all(tmp_path)]
-    assert names == ["foundation", "protocol", "prompt", "bash", "run_health", "endpoint"]
+    assert names == ["foundation", "protocol", "prompt", "bash", "run_health", "endpoint", "ci"]
     # stable across repeated calls
     assert [c.name for c in run_all(tmp_path)] == names
 
