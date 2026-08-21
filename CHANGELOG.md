@@ -7,7 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **CI check resolves the project's git repo via `proj/`** (TICKET-067) —
+  `loop_doctor/ci.py` now resolves the git repo with
+  `loop_doctor.project.resolve_proj_dir` (the `proj` dir, mirroring the bash
+  check) and runs every `git`/`gh` command with `-C str(repo_dir)`. Previously
+  it ran git in the raw project dir, so a fleet-style layout (a `proj/` git
+  repo with an `origin` remote next to an `ai/` dir) was wrongly `SKIP`ped as
+  "no origin" and the check never verified CI. The check now reaches the
+  green/red decision on the real repo; a `proj/` that is not a git work tree,
+  has no `origin`, or is a non-GitHub remote still `SKIP`s.
+- **run_health unions cycle markers across all `cycles*.out` artifacts**
+  (TICKET-068) — `loop_doctor/run_health.py` now computes contiguity over the
+  union of the cycle markers in *every* `cycles*.out` file in the `ai` dir
+  (glob `cycles*.out`, sorted, deduped by `cycle_no`), so a rotated / segmented
+  history (e.g. `cycles.out` + `cycles-4.out`) no longer produces a false
+  "missing cycle" gap. A cycle number genuinely absent from all artifacts is
+  still reported honestly as `FAIL` (naming the number); no `cycles*.out`
+  artifacts is still `SKIP`. The orphan-trajectory check is validated over the
+  unioned cycles.
+
 ### Added
+
 
 - **CI check** (check 7, registered last) — `loop_doctor/ci.py` verifies the
   project's main-branch head commit has green GitHub Actions CI via `git` +

@@ -237,3 +237,60 @@ def test_ci_cancelled_conclusion_fails(tmp_path: Path) -> None:
         check = ci_check(tmp_path)
     assert check.status is Status.FAIL
     assert "test" in check.detail
+
+
+def test_ci_git_c_arg_is_resolved_proj_path(tmp_path: Path) -> None:
+    # The ci check must run git against the resolved proj dir (the git repo),
+    # not the raw project dir. Capture every command the seam receives and
+    # assert the ``-C`` argument is ``str(project_dir / "proj")``.
+    captured: list[list[str]] = []
+
+    def _capture(cmd: list[str]) -> subprocess.CompletedProcess:
+        captured.append(list(cmd))
+        return _cp(0, stdout="true\n")
+
+    with mock.patch.object(ci_mod, "_run", side_effect=_capture):
+        ci_check(tmp_path)
+
+    # The first command is the work-tree probe; its -C arg must be the proj dir.
+    assert captured, "expected at least one git command"
+    first = captured[0]
+    assert first[0] == "git"
+    assert "-C" in first
+    c_arg = first[first.index("-C") + 1]
+    assert c_arg == str(tmp_path / "proj")
+    assert c_arg != str(tmp_path)
+
+
+def test_ci_fleet_layout_reaches_decision_not_skip(tmp_path: Path) -> None:
+    # Fleet layout: the raw project dir is NOT a git repo, but ``proj/`` is a
+    # git repo with a GitHub origin. The check must run git against ``proj/``
+    # and reach the green/red decision (PASS here) instead of SKIPping as
+    # "not a git repo with origin".
+    responses = [
+        _cp(0, stdout="true\n"),
+        _cp(0, stdout="https://github.com/belarusian/loop-doctor.git\n"),
+        _cp(0),
+        _cp(0, stdout=SHA + "\n"),
+        _cp(0, stdout=_check_runs_payload([
+            {"name": "test", "status": "completed", "conclusion": "success"},
+        ])),
+    ]
+    captured: list[list[str]] = []
+    it = iter(responses)
+
+    def _side(cmd: list[str]) -> subprocess.CompletedProcess:
+        captured.append(list(cmd))
+        return next(it)
+
+    with mock.patch.object(ci_mod, "_run", side_effect=_side):
+        check = ci_check(tmp_path)
+
+    # Reaches the green decision, not SKIP.
+    assert check.status is Status.PASS
+    assert f"CI green at {SHORT}" in check.detail
+    # And it ran git against the resolved proj dir, not the raw dir.
+    first = captured[0]
+    assert first[0] == "git"
+    c_arg = first[first.index("-C") + 1]
+    assert c_arg == str(tmp_path / "proj")

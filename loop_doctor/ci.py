@@ -1,18 +1,22 @@
 """GitHub Actions CI check for loop-doctor.
 
 The ci check verifies that the project's main-branch head commit has green
-GitHub Actions CI. It resolves the origin remote, fetches ``origin/main``, and
-queries the GitHub API for the check runs on that commit via ``gh``.
+GitHub Actions CI. It resolves the project's git repo via
+:func:`loop_doctor.project.resolve_proj_dir` (the ``proj`` dir in the
+four-pipeline layout, mirroring the bash check) and runs every ``git``/``gh``
+command with ``-C str(repo_dir)``. It then resolves the origin remote, fetches
+``origin/main``, and queries the GitHub API for the check runs on that commit
+via ``gh``.
 
 The check is dependency-free except for the ``git`` and ``gh`` binaries, which
 are invoked through a single module-level seam :func:`_run`. In tests the seam
 is isolated by patching ``loop_doctor.ci._run`` (see ``tests/test_ci.py``), so
 the suite stays deterministic and network-free.
 
-An indeterminate environment (missing ``gh``, a non-git directory, a
-non-GitHub remote, or a failed subprocess) is surfaced as ``Status.SKIP``
-(non-blocking) rather than a hard FAIL, mirroring the prompt check's
-optional-dependency SKIP convention.
+An indeterminate environment (missing ``gh``, a ``proj`` dir that is not a git
+work tree, a non-GitHub remote, or a failed subprocess) is surfaced as
+``Status.SKIP`` (non-blocking) rather than a hard FAIL, mirroring the prompt
+check's optional-dependency SKIP convention.
 """
 
 from __future__ import annotations
@@ -22,6 +26,7 @@ import re
 import subprocess
 from pathlib import Path
 
+from loop_doctor.project import resolve_proj_dir
 from loop_doctor.report import Check, Status
 
 # Conclusions that mean a check run did not block the commit.
@@ -94,18 +99,25 @@ def _tail(text: str, limit: int = 200) -> str:
 def ci_check(project_dir: Path) -> Check:
     """The ci check: the project's main-branch head commit has green CI.
 
-    Resolves the origin remote, fetches ``origin/main``, and evaluates the
-    GitHub Actions check runs on that commit. See the module docstring for the
-    decision order. Any indeterminate environment is surfaced as ``SKIP``
-    (non-blocking).
+    Resolves the project's git repo with
+    :func:`loop_doctor.project.resolve_proj_dir` (the ``proj`` dir, mirroring
+    the bash check) and runs every ``git``/``gh`` command with
+    ``-C str(repo_dir)``. It then resolves the origin remote, fetches
+    ``origin/main``, and evaluates the GitHub Actions check runs on that
+    commit. See the module docstring for the decision order. Any indeterminate
+    environment is surfaced as ``SKIP`` (non-blocking).
     """
-    project_dir = Path(project_dir)
+    # Resolve the project's git repo (the ``proj`` dir) rather than the raw
+    # project dir, mirroring the bash check. In the four-pipeline layout the
+    # git repo lives at ``<project-dir>/proj``; running git in the raw dir
+    # would hit the ambient tree (or no tree) and wrongly SKIP.
+    repo_dir = resolve_proj_dir(project_dir)
 
     # 1. Must be a git work tree with an origin remote.
-    inside = _run(["git", "-C", str(project_dir), "rev-parse", "--is-inside-work-tree"])
+    inside = _run(["git", "-C", str(repo_dir), "rev-parse", "--is-inside-work-tree"])
     if inside.returncode != 0:
         return Check("ci", Status.SKIP, "not a git repo with origin")
-    remote = _run(["git", "-C", str(project_dir), "remote", "get-url", "origin"])
+    remote = _run(["git", "-C", str(repo_dir), "remote", "get-url", "origin"])
     if remote.returncode != 0 or not remote.stdout.strip():
         return Check("ci", Status.SKIP, "not a git repo with origin")
 
@@ -116,8 +128,8 @@ def ci_check(project_dir: Path) -> Check:
     owner, name = parsed
 
     # 3. Fetch origin/main and resolve its head SHA.
-    fetch = _run(["git", "-C", str(project_dir), "fetch", "origin", "main", "--quiet"])
-    rev = _run(["git", "-C", str(project_dir), "rev-parse", "origin/main"])
+    fetch = _run(["git", "-C", str(repo_dir), "fetch", "origin", "main", "--quiet"])
+    rev = _run(["git", "-C", str(repo_dir), "rev-parse", "origin/main"])
     if rev.returncode != 0 or not rev.stdout.strip():
         return Check(
             "ci",

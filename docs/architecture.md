@@ -78,11 +78,16 @@ environment is indeterminate, so the base install gates hermetically.
 
 ### 4. Run health
 
-- **Purpose** — inspect the run artifacts (`cycles.out` + trajectories) for
+- **Purpose** — inspect the run artifacts (`cycles*.out` + trajectories) for
   a join gap fourseer cannot see.
-- **Decision order** — `fourseer` not installed is `SKIP`; no `cycles.out`
+- **Decision order** — `fourseer` not installed is `SKIP`; no `cycles*.out`
   or no cycles is `SKIP`; a missing cycle number (contiguity gap) or an
   orphan trajectory path is `FAIL`; else `PASS`.
+- **Union across segments** — contiguity is computed over the **union** of the
+  cycle markers in *every* `cycles*.out` artifact in the `ai` dir (a rotated /
+  segmented history such as `cycles.out` + `cycles-4.out` is one logical run,
+  not a gap). A cycle number genuinely absent from all artifacts is reported
+  honestly as `FAIL` (naming the number); coverage is never invented.
 - **Seam** — the optional `fourseer` import is guarded with
   `try/except ImportError`.
 - **SKIP-on-indeterminate** — `SKIP` when `fourseer` is absent or there are
@@ -104,20 +109,25 @@ environment is indeterminate, so the base install gates hermetically.
 
 - **Purpose** — the project's main-branch head commit has green GitHub
   Actions CI.
-- **Decision order** — not a git repo with an `origin` remote is `SKIP`;
-  a non-GitHub remote is `SKIP`; `origin/main` cannot be resolved is `SKIP`;
-  zero check runs is `SKIP`; any run not yet `completed` is `FAIL` (CI in
-  progress); any run with a blocking conclusion (`failure`, `cancelled`,
-  `timed_out`, `action_required`) is `FAIL` (CI red); otherwise `PASS` (CI
-  green).
+- **Repo resolution** — the check resolves the project's git repo via
+  `resolve_proj_dir` (the `proj` dir in the four-pipeline layout, mirroring
+  the bash check) and runs every `git`/`gh` command with `-C str(repo_dir)`.
+  It does **not** run git in the raw project dir, which would hit the ambient
+  tree (or no tree) and wrongly `SKIP` on a fleet-style layout.
+- **Decision order** — the resolved `proj` dir is not a git repo with an
+  `origin` remote is `SKIP`; a non-GitHub remote is `SKIP`; `origin/main`
+  cannot be resolved is `SKIP`; zero check runs is `SKIP`; any run not yet
+  `completed` is `FAIL` (CI in progress); any run with a blocking conclusion
+  (`failure`, `cancelled`, `timed_out`, `action_required`) is `FAIL` (CI red);
+  otherwise `PASS` (CI green).
 - **Seam** — every `git`/`gh` invocation is routed through the single
   module-level `_run(cmd)` helper, which normalizes a missing binary
   (`FileNotFoundError`) to a non-zero result (`returncode=127`); tests patch
   `loop_doctor.ci._run` so the suite is network-free.
-- **SKIP-on-indeterminate** — `SKIP` when `gh` is missing, the directory is
-  not a git repo with a GitHub `origin`, `origin/main` cannot be resolved,
-  there are no check runs, or a `git`/`gh` subprocess or JSON parse fails.
-  An indeterminate environment never hard-blocks the verdict.
+- **SKIP-on-indeterminate** — `SKIP` when `gh` is missing, the resolved `proj`
+  dir is not a git repo with a GitHub `origin`, `origin/main` cannot be
+  resolved, there are no check runs, or a `git`/`gh` subprocess or JSON parse
+  fails. An indeterminate environment never hard-blocks the verdict.
 
 ## Report model
 
