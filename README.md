@@ -6,6 +6,7 @@ launching build cycles.
 
 ## Checks
 
+- **Foundation check** — the `ai` dir resolves and the 3-file set is located.
 - **Protocol check** — the 3-file set is present and well-formed: an
   append-only markdown gate log, a runner prompt, and a seed reference.
 - **Prompt lint** — invokes spoke-lint (imported as a library) on the runner
@@ -15,6 +16,9 @@ launching build cycles.
   cycles and detect a `cycles.out` that fourseer cannot see (the join gap).
 - **Endpoint check** — confirms the driver targets the intended LLM endpoints
   `.157:8080` and `.161:8081`, and that no run is currently alive.
+- **CI check** — the project's main-branch head commit has green GitHub Actions
+  CI (via `git` + `gh`); an indeterminate environment (no `gh`, non-GitHub
+  remote, no check runs) is a non-blocking `SKIP`.
 
 ## Usage
 

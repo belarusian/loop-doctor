@@ -291,6 +291,9 @@ def test_check_nogo_when_endpoint_fails(tmp_path: Path, capsys, monkeypatch) -> 
 # The seven registered check names, in stable registration order.
 SEVEN_CHECKS = ["foundation", "protocol", "prompt", "bash", "run_health", "endpoint", "ci"]
 
+# A fixed commit SHA used by the ci seams (never a real commit).
+CI_SHA = "abcdef0123456789abcdef0123456789abcdef01"
+
 
 def _dep_available(name: str) -> bool:
     """Return True if the optional dependency ``name`` is importable."""
@@ -353,32 +356,71 @@ def _seam_run_health(tmp_path: Path, monkeypatch) -> None:
 def _seam_endpoint(tmp_path: Path, monkeypatch) -> None:
     """Make endpoint FAIL: every endpoint unreachable."""
     monkeypatch.setattr(endpoint_mod, "_probe", lambda *a, **k: False)
-def _seam_ci(tmp_path: Path, monkeypatch) -> None:
-    """Make ci FAIL: a red check run on origin/main head.
 
-    Drives the ``loop_doctor.ci._run`` seam to return canned git/gh results in
-    the order ``ci_check`` issues them: inside work tree, a GitHub origin URL,
-    fetch ok, rev-parse ok, and a gh check-runs payload with one failure.
+
+def _ci_run_responses(payload: str) -> list:
+    """Build the canned git/gh responses for one full ``ci_check`` run.
+
+    Returns the five ``CompletedProcess`` objects ``ci_check`` consumes in the
+    order it issues them: inside work tree, a GitHub origin URL, fetch ok,
+    rev-parse ok, and the gh check-runs ``payload``.
     """
-    import json as _json
     import subprocess as _subprocess
-    import loop_doctor.ci as ci_mod
-
-    sha = "abcdef0123456789abcdef0123456789abcdef01"
 
     def _cp(rc: int, stdout: str = "", stderr: str = "") -> _subprocess.CompletedProcess:
         return _subprocess.CompletedProcess(args=[], returncode=rc, stdout=stdout, stderr=stderr)
 
-    responses = [
+    return [
         _cp(0, stdout="true\n"),
         _cp(0, stdout="https://github.com/belarusian/loop-doctor.git\n"),
         _cp(0),
-        _cp(0, stdout=sha + "\n"),
-        _cp(0, stdout=_json.dumps({"total_count": 1, "check_runs": [
-            {"name": "test", "status": "completed", "conclusion": "failure"},
-        ]})),
+        _cp(0, stdout=CI_SHA + "\n"),
+        _cp(0, stdout=payload),
     ]
-    it = iter(responses)
+
+
+def _seam_ci(tmp_path: Path, monkeypatch) -> None:
+    """Make ci FAIL: a red check run on origin/main head.
+
+    Drives the ``loop_doctor.ci._run`` seam to a gh check-runs payload with one
+    failure conclusion, so ``ci_check`` returns ``Status.FAIL``.
+    """
+    import loop_doctor.ci as ci_mod
+
+    payload = json.dumps({"total_count": 1, "check_runs": [
+        {"name": "test", "status": "completed", "conclusion": "failure"},
+    ]})
+    it = iter(_ci_run_responses(payload))
+    monkeypatch.setattr(ci_mod, "_run", lambda cmd: next(it))
+
+
+def _seam_ci_pass(tmp_path: Path, monkeypatch) -> None:
+    """Make ci PASS: every check run completed with a green conclusion.
+
+    Drives the ``loop_doctor.ci._run`` seam to a gh check-runs payload in which
+    all runs are completed with ``success``, so ``ci_check`` returns
+    ``Status.PASS``.
+    """
+    import loop_doctor.ci as ci_mod
+
+    payload = json.dumps({"total_count": 1, "check_runs": [
+        {"name": "test", "status": "completed", "conclusion": "success"},
+    ]})
+    it = iter(_ci_run_responses(payload))
+    monkeypatch.setattr(ci_mod, "_run", lambda cmd: next(it))
+
+
+def _seam_ci_skip(tmp_path: Path, monkeypatch) -> None:
+    """Make ci SKIP: the commit has no check runs (indeterminate, non-blocking).
+
+    Drives the ``loop_doctor.ci._run`` seam to a gh check-runs payload with zero
+    runs, so ``ci_check`` returns ``Status.SKIP`` (the SKIP-on-indeterminate
+    convention).
+    """
+    import loop_doctor.ci as ci_mod
+
+    payload = json.dumps({"total_count": 0, "check_runs": []})
+    it = iter(_ci_run_responses(payload))
     monkeypatch.setattr(ci_mod, "_run", lambda cmd: next(it))
 
 
@@ -421,6 +463,53 @@ def test_exit_code_one_when_check_fails(
     assert data["verdict"] is False
     target = next(c for c in data["checks"] if c["name"] == check_name)
     assert target["status"] == "fail"
+
+
+def test_ci_fail_is_nogo_and_exit_one(tmp_path: Path, capsys, monkeypatch) -> None:
+    # Dedicated pin: ci FAIL alone flips the aggregate to NO-GO and exit 1,
+    # even though every other check passes/skips.
+    _make_ai_dir(tmp_path / "ai")
+    _seam_ci(tmp_path, monkeypatch)
+    code = main(["check", str(tmp_path), "--json"])
+    data = json.loads(capsys.readouterr().out)
+    assert code == 1
+    assert data["verdict"] is False
+    target = next(c for c in data["checks"] if c["name"] == "ci")
+    assert target["status"] == "fail"
+    # The other six checks are not the cause of the NO-GO.
+    for c in data["checks"]:
+        if c["name"] != "ci":
+            assert c["status"] != "fail"
+
+
+def test_ci_skip_leaves_verdict_go_and_exit_zero(tmp_path: Path, capsys, monkeypatch) -> None:
+    # ci SKIP is non-blocking: with the rest passing/skipping, the aggregate
+    # verdict is unchanged (GO) and the exit code is 0.
+    _make_ai_dir(tmp_path / "ai")
+    _seam_ci_skip(tmp_path, monkeypatch)
+    code = main(["check", str(tmp_path), "--json"])
+    data = json.loads(capsys.readouterr().out)
+    assert code == 0
+    assert data["verdict"] is True
+    target = next(c for c in data["checks"] if c["name"] == "ci")
+    assert target["status"] == "skip"
+    # No check failed, so the verdict is GO.
+    assert all(c["status"] != "fail" for c in data["checks"])
+
+
+def test_ci_pass_leaves_verdict_go_and_exit_zero(tmp_path: Path, capsys, monkeypatch) -> None:
+    # ci PASS is non-blocking in the other direction: it neither helps nor
+    # hurts, so with the rest passing/skipping the aggregate stays GO and the
+    # exit code is 0.
+    _make_ai_dir(tmp_path / "ai")
+    _seam_ci_pass(tmp_path, monkeypatch)
+    code = main(["check", str(tmp_path), "--json"])
+    data = json.loads(capsys.readouterr().out)
+    assert code == 0
+    assert data["verdict"] is True
+    target = next(c for c in data["checks"] if c["name"] == "ci")
+    assert target["status"] == "pass"
+    assert all(c["status"] != "fail" for c in data["checks"])
 
 
 def test_exit_code_two_for_nonexistent_dir(tmp_path: Path, capsys) -> None:

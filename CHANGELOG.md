@@ -5,6 +5,31 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **CI check** (check 7, registered last) — `loop_doctor/ci.py` verifies the
+  project's main-branch head commit has green GitHub Actions CI via `git` +
+  `gh`. It is the seventh registered check, so `loop-doctor check <dir>` runs
+  seven checks and `--list-checks` lists `ci` last. An indeterminate
+  environment (no `gh`, a non-git directory, a non-GitHub remote, no check
+  runs, or a failed subprocess/JSON parse) is a non-blocking `SKIP`, mirroring
+  the prompt check's optional-dependency convention.
+- **Go/no-go + exit-code contract for the CI check** — the Cycle 8 suite in
+  `tests/test_cli.py` now pins that `ci` FAIL flips the aggregate to NO-GO
+  (exit 1) while `ci` PASS or `ci` SKIP leave the aggregate verdict unchanged
+  (exit 0, verdict true) when the other checks pass/skip.
+- **Docs** — `docs/architecture.md` gains a Capabilities section (the six
+  capability checks, including the CI check) and the module map / registry
+  reflect seven checks; `README.md`'s check list now lists all seven checks.
+
+### Notes
+
+- The CI check is dependency-free except for the `git` and `gh` binaries,
+  which are invoked through a single module-level `_run` seam so the test
+  suite stays deterministic and network-free.
+
 ## [0.0.1] - 2026-08-20
 
 Initial release of loop-doctor, a pre-flight readiness auditor for the four
