@@ -19,6 +19,7 @@ absent.
 | `loop_doctor/bash_check.py` | The bash check (`bash -n` on root `.sh` drivers). |
 | `loop_doctor/run_health.py` | The run-health check (fourseer, optional). |
 | `loop_doctor/endpoint.py` | The endpoint check (`.157:8080` / `.161:8081`). |
+| `loop_doctor/ci.py` | The ci check (green GitHub Actions CI on the main-branch head). |
 
 ## Check registry
 
@@ -28,7 +29,7 @@ or replaces a check; `run_all(project_dir)` runs every registered check in stabl
 insertion order and returns the list of `Check` results; `run_one(name, project_dir)` runs a
 single named check (raising `KeyError` for an unknown name).
 
-The six checks are registered at import time in this stable order:
+The seven checks are registered at import time in this stable order:
 ```python
 register("foundation", _foundation)
 register("protocol", protocol_check)
@@ -36,8 +37,87 @@ register("prompt", prompt_check)
 register("bash", bash_check)
 register("run_health", run_health_check)
 register("endpoint", endpoint_check)
+register("ci", ci_check)
 ```
 
+
+## Capabilities
+
+Each check is a small, dependency-light capability with a stable decision
+order. The two optional capabilities (`prompt`, `run_health`) and the `ci`
+capability degrade to `SKIP` (non-blocking) when their dependency or
+environment is indeterminate, so the base install gates hermetically.
+
+### 1. Protocol
+
+- **Purpose** — the 3-file set is present and the gate log is well-formed.
+- **Decision order** — resolve the project (reuses `resolve_project`); a
+  missing gate log or runner prompt, an unreadable gate log, a missing
+  level-1 title line, a missing `THE SEED` fenced block, or a missing seed
+  ref is `FAIL` (detail names what is missing); otherwise `PASS`.
+- **Seam** — none (pure file inspection, dependency-free).
+
+### 2. Prompt
+
+- **Purpose** — lint the runner prompt's spoke invocations against the
+  argparse signatures of the referenced spoke scripts.
+- **Decision order** — `spoke_lint` not installed is `SKIP`; otherwise run
+  `spoke_lint` and consider invocation findings only (`missing_script`,
+  `unknown_flag`, `missing_required`); any finding is `FAIL`, else `PASS`.
+- **Seam** — the optional `spoke_lint` import is guarded with
+  `try/except ImportError`.
+- **SKIP-on-indeterminate** — `SKIP` when `spoke_lint` is absent.
+
+### 3. Bash
+
+- **Purpose** — `bash -n` syntax check on every `.sh` driver in the `proj` dir.
+- **Decision order** — no `.sh` drivers is `PASS`; run `bash -n` on each
+  (parse-only, never executed); any non-zero exit is `FAIL` naming the
+  offending script(s) and the first `bash -n` stderr line; else `PASS`.
+- **Seam** — none (shells out to `bash -n`, dependency-free).
+
+### 4. Run health
+
+- **Purpose** — inspect the run artifacts (`cycles.out` + trajectories) for
+  a join gap fourseer cannot see.
+- **Decision order** — `fourseer` not installed is `SKIP`; no `cycles.out`
+  or no cycles is `SKIP`; a missing cycle number (contiguity gap) or an
+  orphan trajectory path is `FAIL`; else `PASS`.
+- **Seam** — the optional `fourseer` import is guarded with
+  `try/except ImportError`.
+- **SKIP-on-indeterminate** — `SKIP` when `fourseer` is absent or there are
+  no run artifacts yet.
+
+### 5. Endpoint
+
+- **Purpose** — confirm the LLM backends the build loop depends on are
+  reachable (`.157:8080` / `.161:8081`).
+- **Decision order** — probe each endpoint with a plain TCP connect via
+  `_probe`; any unreachable endpoint is `FAIL` naming each `host:port`; else
+  `PASS`.
+- **Seam** — `_probe(host, port, timeout)` is the single network seam; tests
+  patch it (see `tests/conftest.py`) so the suite is network-free.
+- **SKIP-on-indeterminate** — none: a network failure is a hard `FAIL`, not a
+  `SKIP` (an unreachable backend genuinely blocks the loop).
+
+### 6. CI
+
+- **Purpose** — the project's main-branch head commit has green GitHub
+  Actions CI.
+- **Decision order** — not a git repo with an `origin` remote is `SKIP`;
+  a non-GitHub remote is `SKIP`; `origin/main` cannot be resolved is `SKIP`;
+  zero check runs is `SKIP`; any run not yet `completed` is `FAIL` (CI in
+  progress); any run with a blocking conclusion (`failure`, `cancelled`,
+  `timed_out`, `action_required`) is `FAIL` (CI red); otherwise `PASS` (CI
+  green).
+- **Seam** — every `git`/`gh` invocation is routed through the single
+  module-level `_run(cmd)` helper, which normalizes a missing binary
+  (`FileNotFoundError`) to a non-zero result (`returncode=127`); tests patch
+  `loop_doctor.ci._run` so the suite is network-free.
+- **SKIP-on-indeterminate** — `SKIP` when `gh` is missing, the directory is
+  not a git repo with a GitHub `origin`, `origin/main` cannot be resolved,
+  there are no check runs, or a `git`/`gh` subprocess or JSON parse fails.
+  An indeterminate environment never hard-blocks the verdict.
 
 ## Report model
 
