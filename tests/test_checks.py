@@ -119,11 +119,11 @@ def test_run_all_returns_foundation_then_protocol_in_stable_order(
 
 
 def test_composed_report_nogo_when_protocol_fails(tmp_path: Path) -> None:
-    # A gate log with a title line but no THE SEED block makes protocol FAIL.
+    # A gate log with no level-1 title line makes protocol FAIL.
     ai_dir = tmp_path / "ai"
     ai_dir.mkdir(parents=True, exist_ok=True)
     (ai_dir / "cycle-001-loop-doctor-gate.md").write_text(
-        chr(10).join(["# cycle-001 gate", "", "no seed block here", ""]),
+        chr(10).join(["## notes", "append-only log"]),
         encoding="utf-8",
     )
     (ai_dir / "loop-doctor-cycle-runner-prompt.md").write_text(

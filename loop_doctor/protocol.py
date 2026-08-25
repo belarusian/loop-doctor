@@ -60,10 +60,11 @@ def protocol_check(project_dir: Path) -> Check:
     """The protocol check: the 3-file set is present and the gate log is well-formed.
 
     Reuses :func:`loop_doctor.project.resolve_project` (does not re-implement
-    resolution). PASS when the gate log, runner prompt, and seed ref are all
-    located AND the gate log has a ``# ...`` title line AND a ``THE SEED``
-    fenced block. FAIL with a detail naming exactly what is missing or
-    malformed.
+    resolution). PASS when the gate log and runner prompt are located AND the
+    gate log has a ``# ...`` title line. The ``THE SEED`` fenced block is
+    optional: seedless projects PASS. Only a ``THE SEED`` block that is present
+    but whose seed ref is unresolvable is ``FAIL``. FAIL with a detail naming
+    exactly what is missing or malformed.
     """
     ai_dir, three = resolve_project(project_dir)
     gate_log = three.gate_log
@@ -89,9 +90,7 @@ def protocol_check(project_dir: Path) -> Check:
     lines = text.splitlines()
     if not _has_title_line(lines):
         return Check("protocol", Status.FAIL, "malformed gate log: no title line")
-    if not _has_seed_block(lines):
-        return Check("protocol", Status.FAIL, "malformed gate log: no THE SEED block")
-    if three.seed_ref is None:
-        return Check("protocol", Status.FAIL, "missing: seed ref")
+    if _has_seed_block(lines) and three.seed_ref is None:
+        return Check("protocol", Status.FAIL, "malformed gate log: missing: seed ref")
 
     return Check("protocol", Status.PASS, f"ai dir {ai_dir}")

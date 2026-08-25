@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Protocol check PASSES seedless gate logs** (TICKET-069) —
+  `loop_doctor/protocol.py` no longer `FAIL`s a gate log that has no
+  `THE SEED` fenced block; seedless projects are legal and `PASS`. Only a
+  `THE SEED` block that is present but whose seed ref is unresolvable is
+  `FAIL` (detail `malformed gate log: missing: seed ref`). The level-1
+  title-line check is unchanged.
+
 - **CI check resolves the project's git repo via `proj/`** (TICKET-067) —
   `loop_doctor/ci.py` now resolves the git repo with
   `loop_doctor.project.resolve_proj_dir` (the `proj` dir, mirroring the bash

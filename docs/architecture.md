@@ -52,9 +52,12 @@ environment is indeterminate, so the base install gates hermetically.
 
 - **Purpose** — the 3-file set is present and the gate log is well-formed.
 - **Decision order** — resolve the project (reuses `resolve_project`); a
-  missing gate log or runner prompt, an unreadable gate log, a missing
-  level-1 title line, a missing `THE SEED` fenced block, or a missing seed
-  ref is `FAIL` (detail names what is missing); otherwise `PASS`.
+  missing gate log or runner prompt, an unreadable gate log, or a missing
+  level-1 title line is `FAIL` (detail names what is missing). The `THE SEED`
+  fenced block is optional: a missing block is legal (seedless projects
+  `PASS`). Only a `THE SEED` block that is present but whose seed ref is
+  unresolvable is `FAIL` (detail names the missing seed ref); otherwise
+  `PASS`.
 - **Seam** — none (pure file inspection, dependency-free).
 
 ### 2. Prompt
