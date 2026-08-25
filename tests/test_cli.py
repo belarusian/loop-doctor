@@ -132,11 +132,11 @@ def test_check_full_run_composes_both_checks(tmp_path: Path, capsys) -> None:
 
 
 def test_check_nogo_when_protocol_fails(tmp_path: Path, capsys) -> None:
-    # A malformed gate log (no THE SEED block) makes protocol FAIL -> NO-GO.
+    # A gate log with no level-1 title line makes protocol FAIL -> NO-GO.
     ai_dir = tmp_path / "ai"
     ai_dir.mkdir(parents=True, exist_ok=True)
     (ai_dir / "cycle-001-loop-doctor-gate.md").write_text(
-        chr(10).join(["# cycle-001 gate", "", "no seed block here", ""]),
+        chr(10).join(["## notes", "append-only log"]),
         encoding="utf-8",
     )
     (ai_dir / "loop-doctor-cycle-runner-prompt.md").write_text(
@@ -306,9 +306,9 @@ def _seam_foundation(tmp_path: Path, monkeypatch) -> None:
 
 
 def _seam_protocol(tmp_path: Path, monkeypatch) -> None:
-    """Make protocol FAIL: rewrite the gate log without a THE SEED block."""
+    """Make protocol FAIL: rewrite the gate log without a level-1 title line."""
     (tmp_path / "ai" / "cycle-001-loop-doctor-gate.md").write_text(
-        "# cycle-001 gate\n\nno seed block here\n", encoding="utf-8"
+        "## notes\nappend-only log\n", encoding="utf-8"
     )
 
 

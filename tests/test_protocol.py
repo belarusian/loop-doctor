@@ -87,13 +87,13 @@ def test_protocol_fails_when_both_missing_lists_both(tmp_path: Path) -> None:
     assert check.detail == "missing: gate log, runner prompt"
 
 
-def test_protocol_fails_when_seed_block_absent(tmp_path: Path) -> None:
-    # A gate log with a title line but no THE SEED fenced block.
+def test_protocol_passes_when_seed_block_absent(tmp_path: Path) -> None:
+    # A gate log with a title line but no THE SEED fenced block is seedless
+    # and therefore PASSES.
     gate = NL.join(["# cycle-001 gate", "", "no seed block here", ""])
     _make_ai_dir(tmp_path / "ai", gate_text=gate)
     check = protocol_check(tmp_path)
-    assert check.status is Status.FAIL
-    assert "THE SEED" in check.detail
+    assert check.status is Status.PASS
 
 
 def test_protocol_fails_when_gate_log_lacks_title_line(tmp_path: Path) -> None:
@@ -155,8 +155,9 @@ def test_protocol_passes_with_tilde_fence(tmp_path: Path) -> None:
     assert check.status is Status.PASS
 
 
-def test_protocol_fails_when_seed_marker_has_no_following_fence(tmp_path: Path) -> None:
-    # A THE SEED marker with no fenced block after it -> no THE SEED block.
+def test_protocol_passes_when_seed_marker_has_no_following_fence(tmp_path: Path) -> None:
+    # A THE SEED marker with no fenced block after it is not a THE SEED block,
+    # so the log is seedless and PASSES.
     gate = NL.join([
         "# cycle-001 gate",
         "",
@@ -167,8 +168,7 @@ def test_protocol_fails_when_seed_marker_has_no_following_fence(tmp_path: Path) 
     ])
     _make_ai_dir(tmp_path / "ai", gate_text=gate)
     check = protocol_check(tmp_path)
-    assert check.status is Status.FAIL
-    assert "THE SEED" in check.detail
+    assert check.status is Status.PASS
 
 
 def test_has_title_line_accepts_level_one_heading() -> None:
